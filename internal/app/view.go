@@ -4,20 +4,23 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/v2"
 )
 
 var (
-	subtle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	highlight = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	subtle        = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	highlight     = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	VerticalSpace = lipgloss.NewStyle().Height(1).Render("")
 )
 
 func (m Model) View() string {
 	var s strings.Builder
 
+	statusBarContent := m.StatusBar.Render()
+
 	switch m.state {
 	case checkingSpellbook:
-		s.WriteString("Checking for Spellbook...")
+		m.StatusBar.Content = "Checking for Spellbook..."
 	case creatingSpellbook:
 		s.WriteString("Creating Spellbook...")
 	case ready:
@@ -59,10 +62,19 @@ func (m Model) View() string {
 			submitButton = highlight.Render(submitButton)
 		}
 		s.WriteString(fmt.Sprintf("\n%s\n", submitButton))
-		s.WriteString(subtle.Render("\n(tab: nav, enter in cmd: new line, backspace in empty cmd: delete line)\n"))
+		s.WriteString(
+			subtle.Render(
+				"\n(tab: nav, enter in cmd: new line, backspace in empty cmd: delete line)\n",
+			),
+		)
 
 	case editingRune:
-		s.WriteString(fmt.Sprintf("✍️ Editing Rune: %s\n\n", highlight.Render(m.spellbook.Runes[m.cursor].Name)))
+		s.WriteString(
+			fmt.Sprintf(
+				"✍️ Editing Rune: %s\n\n",
+				highlight.Render(m.spellbook.Runes[m.cursor].Name),
+			),
+		)
 		for i := range m.inputs {
 			s.WriteString(m.inputs[i].View() + "\n")
 		}
@@ -72,7 +84,11 @@ func (m Model) View() string {
 			submitButton = highlight.Render(submitButton)
 		}
 		s.WriteString(fmt.Sprintf("\n%s\n", submitButton))
-		s.WriteString(subtle.Render("\n(tab: nav, enter in cmd: new line, backspace in empty cmd: delete line)\n"))
+		s.WriteString(
+			subtle.Render(
+				"\n(tab: nav, enter in cmd: new line, backspace in empty cmd: delete line)\n",
+			),
+		)
 
 	case executingRune:
 		selectedRune := m.spellbook.Runes[m.cursor]
@@ -117,5 +133,15 @@ func (m Model) View() string {
 		s.WriteString(subtle.Render("(Press 'q' to quit)\n"))
 	}
 
-	return s.String()
+	uiElements := s.String()
+	mainContent := lipgloss.JoinVertical(lipgloss.Left,
+		statusBarContent,
+		VerticalSpace,
+		uiElements,
+	)
+
+	mainLayer := lipgloss.NewLayer(mainContent)
+	canvas := lipgloss.NewCanvas(mainLayer)
+
+	return canvas.Render()
 }

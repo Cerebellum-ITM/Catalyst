@@ -1,6 +1,8 @@
 package app
 
 import (
+	"catalyst/internal/app/components/statusbar"
+	"catalyst/internal/app/styles"
 	"catalyst/internal/config"
 	"catalyst/internal/local"
 	"catalyst/internal/ssh"
@@ -30,15 +32,17 @@ const (
 )
 
 // Define messages for async operations.
-type gotSpellbookMsg struct{ spellbook Spellbook }
-type runeCreatedMsg struct{}
-type runeExecutedMsg struct{ output string }
-type gotLoegsMsg struct{ loegs map[string]string }
-type loegSetMsg struct{}
-type loegRemovedMsg struct{}
-type runeUpdatedMsg struct{}
-type runeDeletedMsg struct{}
-type errMsg struct{ err error }
+type (
+	gotSpellbookMsg struct{ spellbook Spellbook }
+	runeCreatedMsg  struct{}
+	runeExecutedMsg struct{ output string }
+	gotLoegsMsg     struct{ loegs map[string]string }
+	loegSetMsg      struct{}
+	loegRemovedMsg  struct{}
+	runeUpdatedMsg  struct{}
+	runeDeletedMsg  struct{}
+	errMsg          struct{ err error }
+)
 
 // Model is the main application model.
 type Model struct {
@@ -48,17 +52,27 @@ type Model struct {
 	pwd         string // Current working directory (spellbook path)
 	menuItems   []string
 	cursor      int
-	spellbook   *Spellbook          // Our in-memory cache
-	loegKeys    []string            // For ordered display and selection
+	spellbook   *Spellbook        // Our in-memory cache
+	loegKeys    []string          // For ordered display and selection
 	inputs      []textinput.Model // For the "Create Rune" form
 	focusIndex  int
 	output      string // To store output from executed runes
 	err         error
+	StatusBar   statusbar.StatusBar
+	Theme       *styles.Theme
 }
 
 // NewModel creates a new application model.
 func NewModel(cfg *config.Config) Model {
 	pwd, _ := os.Getwd() // Get PWD once at the start
+
+	theme := styles.NewCharmtoneTheme()
+	statusbar := statusbar.New(
+		"initializing Catalyst",
+		statusbar.LevelInfo,
+		50,
+		theme,
+	)
 
 	m := Model{
 		sshClient:   ssh.NewClient(cfg.RuneCraftHost),
@@ -68,6 +82,8 @@ func NewModel(cfg *config.Config) Model {
 		menuItems:   []string{"Get Runes", "Create Rune", "Manage Loegs"},
 		inputs:      make([]textinput.Model, 3), // name, desc, cmds
 		focusIndex:  0,
+		Theme:       theme,
+		StatusBar:   statusbar,
 	}
 
 	// Initialize text inputs for the create rune form
@@ -214,7 +230,7 @@ func (m *Model) updateRuneCmd() tea.Msg {
 
 	newName := m.inputs[0].Value()
 	newDesc := m.inputs[1].Value()
-	
+
 	var newCmds []string
 	for i := 2; i < len(m.inputs); i++ {
 		if val := m.inputs[i].Value(); val != "" {
