@@ -35,10 +35,10 @@ func (m Model) View() string {
 
 	case showingRunes:
 		s.WriteString(fmt.Sprintf("📜 Runes in %s:\n\n", m.pwd))
-		if len(m.runes) == 0 {
+		if len(m.spellbook.Runes) == 0 {
 			s.WriteString("No runes found.\n")
 		} else {
-			for i, r := range m.runes {
+			for i, r := range m.spellbook.Runes {
 				cursor := " "
 				if m.cursor == i {
 					cursor = ">"
@@ -62,7 +62,7 @@ func (m Model) View() string {
 		s.WriteString(subtle.Render("\n(tab: nav, enter in cmd: new line, backspace in empty cmd: delete line)\n"))
 
 	case editingRune:
-		s.WriteString(fmt.Sprintf("✍️ Editing Rune: %s\n\n", highlight.Render(m.runes[m.cursor].Name)))
+		s.WriteString(fmt.Sprintf("✍️ Editing Rune: %s\n\n", highlight.Render(m.spellbook.Runes[m.cursor].Name)))
 		for i := range m.inputs {
 			s.WriteString(m.inputs[i].View() + "\n")
 		}
@@ -75,7 +75,7 @@ func (m Model) View() string {
 		s.WriteString(subtle.Render("\n(tab: nav, enter in cmd: new line, backspace in empty cmd: delete line)\n"))
 
 	case executingRune:
-		selectedRune := m.runes[m.cursor]
+		selectedRune := m.spellbook.Runes[m.cursor]
 		s.WriteString(fmt.Sprintf("🏃 Executing Rune: %s\n\n", highlight.Render(selectedRune.Name)))
 		s.WriteString(m.output)
 		// Add a blinking cursor or spinner here in a real app to show activity.
@@ -94,7 +94,7 @@ func (m Model) View() string {
 				if m.cursor == i {
 					cursor = ">"
 				}
-				s.WriteString(fmt.Sprintf("%s %s = %s\n", highlight.Render(cursor), k, m.loegs[k]))
+				s.WriteString(fmt.Sprintf("%s %s = %s\n", highlight.Render(cursor), k, m.spellbook.Loegs[k]))
 			}
 		}
 		s.WriteString(subtle.Render("\n(n: new, d: delete, esc: back)\n"))

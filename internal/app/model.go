@@ -30,9 +30,7 @@ const (
 )
 
 // Define messages for async operations.
-type spellbookCheckMsg struct{ spellbookJSON string }
-type spellbookCreateMsg struct{ spellbookJSON string }
-type gotRunesMsg struct{ runes []Rune }
+type gotSpellbookMsg struct{ spellbook Spellbook }
 type runeCreatedMsg struct{}
 type runeExecutedMsg struct{ output string }
 type gotLoegsMsg struct{ loegs map[string]string }
@@ -50,9 +48,8 @@ type Model struct {
 	pwd         string // Current working directory (spellbook path)
 	menuItems   []string
 	cursor      int
-	runes       []Rune
-	loegs       map[string]string
-	loegKeys    []string // For ordered display and selection
+	spellbook   *Spellbook          // Our in-memory cache
+	loegKeys    []string            // For ordered display and selection
 	inputs      []textinput.Model // For the "Create Rune" form
 	focusIndex  int
 	output      string // To store output from executed runes
@@ -95,43 +92,45 @@ func NewModel(cfg *config.Config) Model {
 	return m
 }
 
-// checkSpellbookCmd is a command that checks for the spellbook's existence.
-func (m *Model) checkSpellbookCmd() tea.Msg {
-	cmd := fmt.Sprintf("get-runes %q", m.pwd)
+// getSpellbookContentCmd fetches the entire spellbook content.
+func (m *Model) getSpellbookContentCmd() tea.Msg {
+	cmd := fmt.Sprintf("get-spellbook-content %q", m.pwd)
 	jsonStr, err := m.sshClient.Command(cmd)
 	if err != nil {
-		return errMsg{err: nil} // Signal to create the spellbook
+		// A failure here might mean the spellbook doesn't exist.
+		return errMsg{err: nil} // Signal to create it.
 	}
-	return spellbookCheckMsg{spellbookJSON: jsonStr}
+
+	var sb Spellbook
+	if err := json.Unmarshal([]byte(jsonStr), &sb); err != nil {
+		return errMsg{err}
+	}
+	return gotSpellbookMsg{spellbook: sb}
 }
 
-// createSpellbookCmd is a command that creates a new spellbook.
+// createSpellbookCmd now also fetches the content after creation.
 func (m *Model) createSpellbookCmd() tea.Msg {
 	cmd := fmt.Sprintf("create-spellbook %q", m.pwd)
 	jsonStr, err := m.sshClient.Command(cmd)
 	if err != nil {
 		return errMsg{err}
 	}
-	return spellbookCreateMsg{spellbookJSON: jsonStr}
+
+	var sb Spellbook
+	if err := json.Unmarshal([]byte(jsonStr), &sb); err != nil {
+		// Even if creation is successful, we might fail to parse.
+		// Let's return the raw JSON in this edge case.
+		return errMsg{fmt.Errorf("failed to parse created spellbook: %w", err)}
+	}
+	return gotSpellbookMsg{spellbook: sb}
 }
 
-// getRunesCmd fetches the list of runes from the backend.
-func (m *Model) getRunesCmd() tea.Msg {
-	cmd := fmt.Sprintf("get-runes %q", m.pwd)
-	jsonStr, err := m.sshClient.Command(cmd)
-	if err != nil {
-		return errMsg{err}
-	}
-
-	var runes []Rune
-	if err := json.Unmarshal([]byte(jsonStr), &runes); err != nil {
-		return errMsg{err}
-	}
-	return gotRunesMsg{runes: runes}
-}
+// All CRUD operations will now just trigger a full refresh of the spellbook.
+// This simplifies state management significantly.
 
 // createRuneCmd sends the command to create a new rune.
 func (m *Model) createRuneCmd() tea.Msg {
+	// ... (build cmdsStr as before)
 	name := m.inputs[0].Value()
 	desc := m.inputs[1].Value()
 
@@ -152,42 +151,28 @@ func (m *Model) createRuneCmd() tea.Msg {
 	if err != nil {
 		return errMsg{err}
 	}
-	return runeCreatedMsg{}
+	return m.getSpellbookContentCmd() // Refresh cache
 }
 
 // executeRuneCmd runs the commands for a selected rune.
 func (m *Model) executeRuneCmd() tea.Msg {
-	if m.cursor < 0 || m.cursor >= len(m.runes) {
+	if m.cursor < 0 || m.cursor >= len(m.spellbook.Runes) {
 		return errMsg{fmt.Errorf("invalid rune selection")}
 	}
-	selectedRune := m.runes[m.cursor]
+	selectedRune := m.spellbook.Runes[m.cursor]
 
 	output, err := m.localRunner.ExecuteCommands(selectedRune.Commands)
 	if err != nil {
-		// The error is already included in the output by the runner.
 		return runeExecutedMsg{output: output}
 	}
-
 	return runeExecutedMsg{output: output}
 }
 
-// getLoegsCmd fetches the list of loegs.
-func (m *Model) getLoegsCmd() tea.Msg {
-	cmd := fmt.Sprintf("loeg list %q", m.pwd)
-	jsonStr, err := m.sshClient.Command(cmd)
-	if err != nil {
-		return errMsg{err}
-	}
-
-	var loegs map[string]string
-	if err := json.Unmarshal([]byte(jsonStr), &loegs); err != nil {
-		return errMsg{err}
-	}
-	return gotLoegsMsg{loegs: loegs}
-}
+// No need for getLoegsCmd anymore, it's part of getSpellbookContentCmd
 
 // setLoegCmd creates or updates a loeg.
 func (m *Model) setLoegCmd() tea.Msg {
+	// ... (build command as before)
 	key := m.inputs[0].Value()
 	val := m.inputs[1].Value()
 	if key == "" || val == "" {
@@ -200,7 +185,7 @@ func (m *Model) setLoegCmd() tea.Msg {
 	if err != nil {
 		return errMsg{err}
 	}
-	return loegSetMsg{}
+	return m.getSpellbookContentCmd() // Refresh cache
 }
 
 // removeLoegCmd removes a loeg.
@@ -209,21 +194,22 @@ func (m *Model) removeLoegCmd() tea.Msg {
 		return errMsg{fmt.Errorf("invalid loeg selection")}
 	}
 	key := m.loegKeys[m.cursor]
-
+	// ... (build command as before)
 	cmd := fmt.Sprintf("loeg rm %q %s", m.pwd, key)
 	_, err := m.sshClient.Command(cmd)
 	if err != nil {
 		return errMsg{err}
 	}
-	return loegRemovedMsg{}
+	return m.getSpellbookContentCmd() // Refresh cache
 }
 
 // updateRuneCmd sends the command to update an existing rune.
 func (m *Model) updateRuneCmd() tea.Msg {
-	if m.cursor < 0 || m.cursor >= len(m.runes) {
+	// ... (build command as before)
+	if m.cursor < 0 || m.cursor >= len(m.spellbook.Runes) {
 		return errMsg{fmt.Errorf("invalid rune selection for update")}
 	}
-	selectedRune := m.runes[m.cursor]
+	selectedRune := m.spellbook.Runes[m.cursor]
 	originalName := selectedRune.Name
 
 	newName := m.inputs[0].Value()
@@ -261,27 +247,25 @@ func (m *Model) updateRuneCmd() tea.Msg {
 	if err != nil {
 		return errMsg{err}
 	}
-	return runeUpdatedMsg{}
+	return m.getSpellbookContentCmd() // Refresh cache
 }
 
 // deleteRuneCmd sends the command to delete a rune.
 func (m *Model) deleteRuneCmd() tea.Msg {
-	if m.cursor < 0 || m.cursor >= len(m.runes) {
+	if m.cursor < 0 || m.cursor >= len(m.spellbook.Runes) {
 		return errMsg{fmt.Errorf("invalid rune selection for delete")}
 	}
-	runeName := m.runes[m.cursor].Name
-
+	runeName := m.spellbook.Runes[m.cursor].Name
+	// ... (build command as before)
 	cmd := fmt.Sprintf("delete-rune %q %q", m.pwd, runeName)
 	_, err := m.sshClient.Command(cmd)
 	if err != nil {
 		return errMsg{err}
 	}
-	return runeDeletedMsg{}
+	return m.getSpellbookContentCmd() // Refresh cache
 }
-
-
 
 // Init is called once when the application starts.
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.checkSpellbookCmd, textinput.Blink)
+	return m.getSpellbookContentCmd
 }
