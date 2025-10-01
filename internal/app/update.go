@@ -1,6 +1,8 @@
 package app
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/bubbles/v2/textinput"
 	tea "github.com/charmbracelet/bubbletea/v2"
 )
@@ -19,6 +21,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return updateShowingLoegs(msg, m)
 	case creatingLoeg:
 		return updateCreatingLoeg(msg, m)
+	case editingRune:
+		return updateEditingRune(msg, m)
 	default: // Covers checking, creating, error states
 		return updateInitial(msg, m)
 	}
@@ -104,11 +108,45 @@ func updateShowingRunes(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 				m.state = executingRune
 				return m, m.executeRuneCmd
 			}
+		case "d": // Delete
+			if len(m.runes) > 0 {
+				return m, m.deleteRuneCmd
+			}
+		case "e": // Edit
+			if len(m.runes) > 0 {
+				m.state = editingRune
+				m.inputs = make([]textinput.Model, 3) // name, desc, cmds
+				m.focusIndex = 0
+
+				selectedRune := m.runes[m.cursor]
+				var t textinput.Model
+				for i := range m.inputs {
+					t = textinput.New()
+					t.CharLimit = 256
+					switch i {
+					case 0:
+						t.Placeholder = "New Rune Name"
+						t.SetValue(selectedRune.Name)
+						t.Focus()
+					case 1:
+						t.Placeholder = "New Description"
+						t.SetValue(selectedRune.Description)
+					case 2:
+						t.Placeholder = "New Commands"
+						t.SetValue(strings.Join(selectedRune.Commands, ";"))
+					}
+					m.inputs[i] = t
+				}
+				return m, textinput.Blink
+			}
 		}
 	case gotRunesMsg:
 		m.runes = msg.runes
 		m.cursor = 0 // Reset cursor for rune list
 		return m, nil
+	case runeDeletedMsg:
+		// After a rune is deleted, refresh the list.
+		return m, m.getRunesCmd
 	case errMsg:
 		m.err = msg.err
 		m.state = errState
@@ -183,6 +221,56 @@ func updateExecutingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
+
+// updateEditingRune handles the form for updating an existing rune.
+func updateEditingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c", "esc":
+			m.state = showingRunes
+			return m, m.getRunesCmd
+		case "tab", "shift+tab", "up", "down":
+			s := msg.String()
+			if s == "up" || s == "shift+tab" {
+				m.focusIndex--
+			} else {
+				m.focusIndex++
+			}
+
+			if m.focusIndex > len(m.inputs) {
+				m.focusIndex = 0
+			} else if m.focusIndex < 0 {
+				m.focusIndex = len(m.inputs)
+			}
+
+			cmds := make([]tea.Cmd, len(m.inputs))
+			for i := 0; i <= len(m.inputs)-1; i++ {
+				if i == m.focusIndex {
+					cmds[i] = m.inputs[i].Focus()
+					continue
+				}
+				m.inputs[i].Blur()
+			}
+			return m, tea.Batch(cmds...)
+
+		case "enter":
+			if m.focusIndex == len(m.inputs) { // "Submit" is focused
+				return m, m.updateRuneCmd
+			}
+		}
+	case runeUpdatedMsg:
+		m.state = showingRunes
+		return m, m.getRunesCmd
+	case errMsg:
+		m.err = msg.err
+		m.state = errState
+		return m, nil
+	}
+	cmd := m.updateInputs(msg)
+	return m, cmd
+}
+
 
 // updateInputs passes messages to the textinput components.
 func (m *Model) updateInputs(msg tea.Msg) tea.Cmd {

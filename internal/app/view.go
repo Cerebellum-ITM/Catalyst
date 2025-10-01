@@ -38,11 +38,15 @@ func (m Model) View() string {
 		if len(m.runes) == 0 {
 			s.WriteString("No runes found.\n")
 		} else {
-			for _, r := range m.runes {
-				s.WriteString(fmt.Sprintf("∙ %s: %s\n", highlight.Render(r.Name), r.Description))
+			for i, r := range m.runes {
+				cursor := " "
+				if m.cursor == i {
+					cursor = ">"
+				}
+				s.WriteString(fmt.Sprintf("%s %s: %s\n", highlight.Render(cursor), r.Name, r.Description))
 			}
 		}
-		s.WriteString(subtle.Render("\n(Press esc or q to return to menu)\n"))
+		s.WriteString(subtle.Render("\n(enter: run, e: edit, d: delete, esc: back)\n"))
 
 	case creatingRune:
 		s.WriteString("✨ Create a New Rune\n\n")
@@ -56,6 +60,19 @@ func (m Model) View() string {
 		}
 		s.WriteString(fmt.Sprintf("\n%s\n", submitButton))
 		s.WriteString(subtle.Render("\n(Use tab to navigate, enter to submit, esc to cancel)\n"))
+
+	case editingRune:
+		s.WriteString(fmt.Sprintf("✍️ Editing Rune: %s\n\n", highlight.Render(m.runes[m.cursor].Name)))
+		for i := range m.inputs {
+			s.WriteString(m.inputs[i].View() + "\n")
+		}
+
+		submitButton := "Submit"
+		if m.focusIndex == len(m.inputs) {
+			submitButton = highlight.Render(submitButton)
+		}
+		s.WriteString(fmt.Sprintf("\n%s\n", submitButton))
+		s.WriteString(subtle.Render("\n(Use tab to navigate, enter to save, esc to cancel)\n"))
 
 	case executingRune:
 		selectedRune := m.runes[m.cursor]

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/v2/textinput"
 	tea "github.com/charmbracelet/bubbletea/v2"
@@ -24,6 +25,7 @@ const (
 	executingRune
 	showingLoegs
 	creatingLoeg
+	editingRune
 	errState
 )
 
@@ -36,6 +38,8 @@ type runeExecutedMsg struct{ output string }
 type gotLoegsMsg struct{ loegs map[string]string }
 type loegSetMsg struct{}
 type loegRemovedMsg struct{}
+type runeUpdatedMsg struct{}
+type runeDeletedMsg struct{}
 type errMsg struct{ err error }
 
 // Model is the main application model.
@@ -206,6 +210,61 @@ func (m *Model) removeLoegCmd() tea.Msg {
 	}
 	return loegRemovedMsg{}
 }
+
+// updateRuneCmd sends the command to update an existing rune.
+func (m *Model) updateRuneCmd() tea.Msg {
+	if m.cursor < 0 || m.cursor >= len(m.runes) {
+		return errMsg{fmt.Errorf("invalid rune selection for update")}
+	}
+	selectedRune := m.runes[m.cursor]
+	originalName := selectedRune.Name
+
+	newName := m.inputs[0].Value()
+	newDesc := m.inputs[1].Value()
+	newCmdsStr := m.inputs[2].Value()
+
+	// Build the command dynamically
+	var parts []string
+	parts = append(parts, "update-rune", fmt.Sprintf("%q", m.pwd), fmt.Sprintf("%q", originalName))
+
+	if newName != "" && newName != originalName {
+		parts = append(parts, "-name", fmt.Sprintf("%q", newName))
+	}
+	if newDesc != "" && newDesc != selectedRune.Description {
+		parts = append(parts, "-desc", fmt.Sprintf("%q", newDesc))
+	}
+	if newCmdsStr != "" && newCmdsStr != strings.Join(selectedRune.Commands, ";") {
+		parts = append(parts, "-cmds", fmt.Sprintf("%q", newCmdsStr))
+	}
+
+	// If no changes were made, don't run the command
+	if len(parts) <= 3 {
+		return runeUpdatedMsg{} // No-op, just go back
+	}
+
+	cmd := strings.Join(parts, " ")
+	_, err := m.sshClient.Command(cmd)
+	if err != nil {
+		return errMsg{err}
+	}
+	return runeUpdatedMsg{}
+}
+
+// deleteRuneCmd sends the command to delete a rune.
+func (m *Model) deleteRuneCmd() tea.Msg {
+	if m.cursor < 0 || m.cursor >= len(m.runes) {
+		return errMsg{fmt.Errorf("invalid rune selection for delete")}
+	}
+	runeName := m.runes[m.cursor].Name
+
+	cmd := fmt.Sprintf("delete-rune %q %q", m.pwd, runeName)
+	_, err := m.sshClient.Command(cmd)
+	if err != nil {
+		return errMsg{err}
+	}
+	return runeDeletedMsg{}
+}
+
 
 
 // Init is called once when the application starts.
