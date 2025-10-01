@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/v2/help"
 	"github.com/charmbracelet/bubbles/v2/textinput"
 	tea "github.com/charmbracelet/bubbletea/v2"
 )
@@ -46,6 +47,8 @@ type (
 
 // Model is the main application model.
 type Model struct {
+	keys        KeyMap
+	help        help.Model
 	sshClient   *ssh.Client
 	localRunner *local.Runner
 	state       state
@@ -67,6 +70,9 @@ func NewModel(cfg *config.Config) Model {
 	pwd, _ := os.Getwd() // Get PWD once at the start
 
 	theme := styles.NewCharmtoneTheme()
+	help := help.New()
+	help.Styles = theme.AppStyles().Help
+	initialsKeys := mainListKeys()
 	statusbar := statusbar.New(
 		"initializing Catalyst",
 		statusbar.LevelInfo,
@@ -75,6 +81,8 @@ func NewModel(cfg *config.Config) Model {
 	)
 
 	m := Model{
+		help:        help,
+		keys:        initialsKeys,
 		sshClient:   ssh.NewClient(cfg.RuneCraftHost),
 		localRunner: local.NewRunner(),
 		state:       checkingSpellbook,

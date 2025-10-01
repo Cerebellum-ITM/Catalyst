@@ -17,6 +17,7 @@ func (m Model) View() string {
 	var s strings.Builder
 
 	statusBarContent := m.StatusBar.Render()
+	helpView := lipgloss.NewStyle().Padding(0, 2).SetString(m.help.View(m.keys)).String()
 
 	switch m.state {
 	case checkingSpellbook:
@@ -138,6 +139,7 @@ func (m Model) View() string {
 		statusBarContent,
 		VerticalSpace,
 		uiElements,
+		helpView,
 	)
 
 	mainLayer := lipgloss.NewLayer(mainContent)
