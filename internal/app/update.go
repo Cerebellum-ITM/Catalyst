@@ -10,6 +10,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return updateShowingRunes(msg, m)
 	case creatingRune:
 		return updateCreatingRune(msg, m)
+	case executingRune:
+		return updateExecutingRune(msg, m)
 	default: // Covers checking, creating, error states
 		return updateInitial(msg, m)
 	}
@@ -77,10 +79,25 @@ func updateShowingRunes(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "q", "esc":
 			m.state = ready // Go back to the main menu
+			m.cursor = 0    // Reset cursor for main menu
 			return m, nil
+		case "up", "k":
+			if m.cursor > 0 {
+				m.cursor--
+			}
+		case "down", "j":
+			if m.cursor < len(m.runes)-1 {
+				m.cursor++
+			}
+		case "enter":
+			if len(m.runes) > 0 {
+				m.state = executingRune
+				return m, m.executeRuneCmd
+			}
 		}
 	case gotRunesMsg:
 		m.runes = msg.runes
+		m.cursor = 0 // Reset cursor for rune list
 		return m, nil
 	case errMsg:
 		m.err = msg.err
@@ -139,6 +156,22 @@ func updateCreatingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	// Update the focused text input
 	cmd := m.updateInputs(msg)
 	return m, cmd
+}
+
+// updateExecutingRune handles updates while a rune is running.
+func updateExecutingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c", "q", "esc", "enter":
+			m.state = showingRunes // Go back to the rune list
+			return m, nil
+		}
+	case runeExecutedMsg:
+		m.output = msg.output
+		return m, nil
+	}
+	return m, nil
 }
 
 // updateInputs passes messages to the textinput components.

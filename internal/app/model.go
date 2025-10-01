@@ -2,6 +2,7 @@ package app
 
 import (
 	"catalyst/internal/config"
+	"catalyst/internal/local"
 	"catalyst/internal/ssh"
 	"encoding/json"
 	"fmt"
@@ -20,6 +21,7 @@ const (
 	ready
 	showingRunes
 	creatingRune
+	executingRune
 	errState
 )
 
@@ -28,19 +30,22 @@ type spellbookCheckMsg struct{ spellbookJSON string }
 type spellbookCreateMsg struct{ spellbookJSON string }
 type gotRunesMsg struct{ runes []Rune }
 type runeCreatedMsg struct{}
+type runeExecutedMsg struct{ output string }
 type errMsg struct{ err error }
 
 // Model is the main application model.
 type Model struct {
-	sshClient  *ssh.Client
-	state      state
-	pwd        string // Current working directory (spellbook path)
-	menuItems  []string
-	cursor     int
-	runes      []Rune
-	inputs     []textinput.Model // For the "Create Rune" form
-	focusIndex int
-	err        error
+	sshClient   *ssh.Client
+	localRunner *local.Runner
+	state       state
+	pwd         string // Current working directory (spellbook path)
+	menuItems   []string
+	cursor      int
+	runes       []Rune
+	inputs      []textinput.Model // For the "Create Rune" form
+	focusIndex  int
+	output      string // To store output from executed runes
+	err         error
 }
 
 // NewModel creates a new application model.
@@ -48,12 +53,13 @@ func NewModel(cfg *config.Config) Model {
 	pwd, _ := os.Getwd() // Get PWD once at the start
 
 	m := Model{
-		sshClient:  ssh.NewClient(cfg.RuneCraftHost),
-		state:      checkingSpellbook,
-		pwd:        pwd,
-		menuItems:  []string{"Get Runes", "Create Rune"},
-		inputs:     make([]textinput.Model, 3), // name, desc, cmds
-		focusIndex: 0,
+		sshClient:   ssh.NewClient(cfg.RuneCraftHost),
+		localRunner: local.NewRunner(),
+		state:       checkingSpellbook,
+		pwd:         pwd,
+		menuItems:   []string{"Get Runes", "Create Rune"},
+		inputs:      make([]textinput.Model, 3), // name, desc, cmds
+		focusIndex:  0,
 	}
 
 	// Initialize text inputs for the create rune form
@@ -81,21 +87,21 @@ func NewModel(cfg *config.Config) Model {
 // checkSpellbookCmd is a command that checks for the spellbook's existence.
 func (m *Model) checkSpellbookCmd() tea.Msg {
 	cmd := fmt.Sprintf("get-runes %q", m.pwd)
-	json, err := m.sshClient.Command(cmd)
+	jsonStr, err := m.sshClient.Command(cmd)
 	if err != nil {
 		return errMsg{err: nil} // Signal to create the spellbook
 	}
-	return spellbookCheckMsg{spellbookJSON: json}
+	return spellbookCheckMsg{spellbookJSON: jsonStr}
 }
 
 // createSpellbookCmd is a command that creates a new spellbook.
 func (m *Model) createSpellbookCmd() tea.Msg {
 	cmd := fmt.Sprintf("create-spellbook %q", m.pwd)
-	json, err := m.sshClient.Command(cmd)
+	jsonStr, err := m.sshClient.Command(cmd)
 	if err != nil {
 		return errMsg{err}
 	}
-	return spellbookCreateMsg{spellbookJSON: json}
+	return spellbookCreateMsg{spellbookJSON: jsonStr}
 }
 
 // getRunesCmd fetches the list of runes from the backend.
@@ -129,6 +135,22 @@ func (m *Model) createRuneCmd() tea.Msg {
 		return errMsg{err}
 	}
 	return runeCreatedMsg{}
+}
+
+// executeRuneCmd runs the commands for a selected rune.
+func (m *Model) executeRuneCmd() tea.Msg {
+	if m.cursor < 0 || m.cursor >= len(m.runes) {
+		return errMsg{fmt.Errorf("invalid rune selection")}
+	}
+	selectedRune := m.runes[m.cursor]
+
+	output, err := m.localRunner.ExecuteCommands(selectedRune.Commands)
+	if err != nil {
+		// The error is already included in the output by the runner.
+		return runeExecutedMsg{output: output}
+	}
+
+	return runeExecutedMsg{output: output}
 }
 
 // Init is called once when the application starts.

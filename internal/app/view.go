@@ -57,6 +57,16 @@ func (m Model) View() string {
 		s.WriteString(fmt.Sprintf("\n%s\n", submitButton))
 		s.WriteString(subtle.Render("\n(Use tab to navigate, enter to submit, esc to cancel)\n"))
 
+	case executingRune:
+		selectedRune := m.runes[m.cursor]
+		s.WriteString(fmt.Sprintf("🏃 Executing Rune: %s\n\n", highlight.Render(selectedRune.Name)))
+		s.WriteString(m.output)
+		// Add a blinking cursor or spinner here in a real app to show activity.
+		if m.output == "" {
+			s.WriteString("Running commands...")
+		}
+		s.WriteString(subtle.Render("\n(Press enter or esc to return to the rune list)\n"))
+
 	case errState:
 		s.WriteString(fmt.Sprintf("An error occurred: %v\n\n", m.err))
 		s.WriteString(subtle.Render("(Press 'q' to quit)\n"))
