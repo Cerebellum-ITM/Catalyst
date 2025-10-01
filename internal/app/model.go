@@ -1,11 +1,17 @@
 package app
 
-import tea "github.com/charmbracelet/bubbletea/v2"
+import (
+	"catalyst/internal/config"
 
-type Model struct{}
+	tea "github.com/charmbracelet/bubbletea/v2"
+)
 
-func NewModel() Model {
-	return Model{}
+type Model struct {
+	config *config.Config
+}
+
+func NewModel(cfg *config.Config) Model {
+	return Model{config: cfg}
 }
 
 func (m Model) Init() tea.Cmd {
