@@ -59,7 +59,7 @@ func (m Model) View() string {
 			submitButton = highlight.Render(submitButton)
 		}
 		s.WriteString(fmt.Sprintf("\n%s\n", submitButton))
-		s.WriteString(subtle.Render("\n(Use tab to navigate, enter to submit, esc to cancel)\n"))
+		s.WriteString(subtle.Render("\n(tab: nav, enter in cmd: new line, backspace in empty cmd: delete line)\n"))
 
 	case editingRune:
 		s.WriteString(fmt.Sprintf("✍️ Editing Rune: %s\n\n", highlight.Render(m.runes[m.cursor].Name)))
@@ -72,7 +72,7 @@ func (m Model) View() string {
 			submitButton = highlight.Render(submitButton)
 		}
 		s.WriteString(fmt.Sprintf("\n%s\n", submitButton))
-		s.WriteString(subtle.Render("\n(Use tab to navigate, enter to save, esc to cancel)\n"))
+		s.WriteString(subtle.Render("\n(tab: nav, enter in cmd: new line, backspace in empty cmd: delete line)\n"))
 
 	case executingRune:
 		selectedRune := m.runes[m.cursor]

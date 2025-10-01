@@ -134,13 +134,20 @@ func (m *Model) getRunesCmd() tea.Msg {
 func (m *Model) createRuneCmd() tea.Msg {
 	name := m.inputs[0].Value()
 	desc := m.inputs[1].Value()
-	cmds := m.inputs[2].Value()
 
-	if name == "" || desc == "" || cmds == "" {
-		return errMsg{fmt.Errorf("all fields are required")}
+	var cmds []string
+	for i := 2; i < len(m.inputs); i++ {
+		if val := m.inputs[i].Value(); val != "" {
+			cmds = append(cmds, val)
+		}
+	}
+	cmdsStr := strings.Join(cmds, ";")
+
+	if name == "" || desc == "" || cmdsStr == "" {
+		return errMsg{fmt.Errorf("name, description, and at least one command are required")}
 	}
 
-	cmd := fmt.Sprintf("create-rune %q -name %q -desc %q -cmds %q", m.pwd, name, desc, cmds)
+	cmd := fmt.Sprintf("create-rune %q -name %q -desc %q -cmds %q", m.pwd, name, desc, cmdsStr)
 	_, err := m.sshClient.Command(cmd)
 	if err != nil {
 		return errMsg{err}
@@ -221,7 +228,14 @@ func (m *Model) updateRuneCmd() tea.Msg {
 
 	newName := m.inputs[0].Value()
 	newDesc := m.inputs[1].Value()
-	newCmdsStr := m.inputs[2].Value()
+	
+	var newCmds []string
+	for i := 2; i < len(m.inputs); i++ {
+		if val := m.inputs[i].Value(); val != "" {
+			newCmds = append(newCmds, val)
+		}
+	}
+	newCmdsStr := strings.Join(newCmds, ";")
 
 	// Build the command dynamically
 	var parts []string

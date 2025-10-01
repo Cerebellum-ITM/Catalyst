@@ -1,8 +1,6 @@
 package app
 
 import (
-	"strings"
-
 	"github.com/charmbracelet/bubbles/v2/textinput"
 	tea "github.com/charmbracelet/bubbletea/v2"
 )
@@ -72,7 +70,26 @@ func updateReady(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 				return m, m.getRunesCmd
 			case 1: // Create Rune
 				m.state = creatingRune
-				return m, nil
+				m.focusIndex = 0
+
+				// Initialize form for creating a rune
+				m.inputs = make([]textinput.Model, 3) // name, desc, one command
+				var t textinput.Model
+				for i := range m.inputs {
+					t = textinput.New()
+					t.CharLimit = 256
+					switch i {
+					case 0:
+						t.Placeholder = "Rune Name"
+						t.Focus()
+					case 1:
+						t.Placeholder = "Description"
+					case 2:
+						t.Placeholder = "Command"
+					}
+					m.inputs[i] = t
+				}
+				return m, textinput.Blink
 			case 2: // Manage Loegs
 				m.state = showingLoegs
 				return m, m.getLoegsCmd
@@ -115,27 +132,33 @@ func updateShowingRunes(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		case "e": // Edit
 			if len(m.runes) > 0 {
 				m.state = editingRune
-				m.inputs = make([]textinput.Model, 3) // name, desc, cmds
 				m.focusIndex = 0
 
 				selectedRune := m.runes[m.cursor]
-				var t textinput.Model
-				for i := range m.inputs {
+				
+				// Start with 3 inputs: name, desc, first command
+				m.inputs = make([]textinput.Model, 2+len(selectedRune.Commands))
+
+				// Setup Name
+				t := textinput.New()
+				t.Placeholder = "Rune Name"
+				t.SetValue(selectedRune.Name)
+				t.Focus()
+				m.inputs[0] = t
+
+				// Setup Description
+				t = textinput.New()
+				t.Placeholder = "Description"
+				t.SetValue(selectedRune.Description)
+				m.inputs[1] = t
+
+				// Setup Command fields
+				for i, cmd := range selectedRune.Commands {
 					t = textinput.New()
+					t.Placeholder = "Command"
+					t.SetValue(cmd)
 					t.CharLimit = 256
-					switch i {
-					case 0:
-						t.Placeholder = "New Rune Name"
-						t.SetValue(selectedRune.Name)
-						t.Focus()
-					case 1:
-						t.Placeholder = "New Description"
-						t.SetValue(selectedRune.Description)
-					case 2:
-						t.Placeholder = "New Commands"
-						t.SetValue(strings.Join(selectedRune.Commands, ";"))
-					}
-					m.inputs[i] = t
+					m.inputs[2+i] = t
 				}
 				return m, textinput.Blink
 			}
@@ -161,49 +184,25 @@ func updateCreatingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc":
-			m.state = ready // Go back to the main menu
+			m.state = ready
 			return m, nil
-		case "tab", "shift+tab", "up", "down":
-			s := msg.String()
-			if s == "up" || s == "shift+tab" {
-				m.focusIndex--
-			} else {
-				m.focusIndex++
-			}
-
-			if m.focusIndex > len(m.inputs) {
-				m.focusIndex = 0
-			} else if m.focusIndex < 0 {
-				m.focusIndex = len(m.inputs)
-			}
-
-			cmds := make([]tea.Cmd, len(m.inputs))
-			for i := 0; i <= len(m.inputs)-1; i++ {
-				if i == m.focusIndex {
-					cmds[i] = m.inputs[i].Focus()
-					continue
-				}
-				m.inputs[i].Blur()
-			}
-			return m, tea.Batch(cmds...)
-
 		case "enter":
-			if m.focusIndex == len(m.inputs) { // "Submit" is focused
+			// Only submit if the "Submit" button is focused.
+			if m.focusIndex == len(m.inputs) {
 				return m, m.createRuneCmd
 			}
 		}
 	case runeCreatedMsg:
-		m.state = ready // Go back to main menu after creation
-		return m, nil
+		m.state = ready
+		return m, m.getRunesCmd // Refresh runes list
 	case errMsg:
 		m.err = msg.err
 		m.state = errState
 		return m, nil
 	}
-
-	// Update the focused text input
-	cmd := m.updateInputs(msg)
-	return m, cmd
+	
+	// Handle form logic
+	return updateRuneForm(msg, m)
 }
 
 // updateExecutingRune handles updates while a rune is running.
@@ -230,32 +229,9 @@ func updateEditingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "esc":
 			m.state = showingRunes
 			return m, m.getRunesCmd
-		case "tab", "shift+tab", "up", "down":
-			s := msg.String()
-			if s == "up" || s == "shift+tab" {
-				m.focusIndex--
-			} else {
-				m.focusIndex++
-			}
-
-			if m.focusIndex > len(m.inputs) {
-				m.focusIndex = 0
-			} else if m.focusIndex < 0 {
-				m.focusIndex = len(m.inputs)
-			}
-
-			cmds := make([]tea.Cmd, len(m.inputs))
-			for i := 0; i <= len(m.inputs)-1; i++ {
-				if i == m.focusIndex {
-					cmds[i] = m.inputs[i].Focus()
-					continue
-				}
-				m.inputs[i].Blur()
-			}
-			return m, tea.Batch(cmds...)
-
 		case "enter":
-			if m.focusIndex == len(m.inputs) { // "Submit" is focused
+			// Only submit if the "Submit" button is focused.
+			if m.focusIndex == len(m.inputs) {
 				return m, m.updateRuneCmd
 			}
 		}
@@ -267,8 +243,9 @@ func updateEditingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		m.state = errState
 		return m, nil
 	}
-	cmd := m.updateInputs(msg)
-	return m, cmd
+	
+	// Handle form logic
+	return updateRuneForm(msg, m)
 }
 
 
