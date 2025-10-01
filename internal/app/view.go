@@ -67,6 +67,34 @@ func (m Model) View() string {
 		}
 		s.WriteString(subtle.Render("\n(Press enter or esc to return to the rune list)\n"))
 
+	case showingLoegs:
+		s.WriteString("🌿 Loegs (Environment Variables):\n\n")
+		if len(m.loegKeys) == 0 {
+			s.WriteString("No loegs found.\n")
+		} else {
+			for i, k := range m.loegKeys {
+				cursor := " "
+				if m.cursor == i {
+					cursor = ">"
+				}
+				s.WriteString(fmt.Sprintf("%s %s = %s\n", highlight.Render(cursor), k, m.loegs[k]))
+			}
+		}
+		s.WriteString(subtle.Render("\n(n: new, d: delete, esc: back)\n"))
+
+	case creatingLoeg:
+		s.WriteString("🌿 Create a New Loeg\n\n")
+		for i := range m.inputs {
+			s.WriteString(m.inputs[i].View() + "\n")
+		}
+
+		submitButton := "Submit"
+		if m.focusIndex == len(m.inputs) {
+			submitButton = highlight.Render(submitButton)
+		}
+		s.WriteString(fmt.Sprintf("\n%s\n", submitButton))
+		s.WriteString(subtle.Render("\n(Use tab to navigate, enter to submit, esc to cancel)\n"))
+
 	case errState:
 		s.WriteString(fmt.Sprintf("An error occurred: %v\n\n", m.err))
 		s.WriteString(subtle.Render("(Press 'q' to quit)\n"))

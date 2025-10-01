@@ -22,6 +22,8 @@ const (
 	showingRunes
 	creatingRune
 	executingRune
+	showingLoegs
+	creatingLoeg
 	errState
 )
 
@@ -31,6 +33,9 @@ type spellbookCreateMsg struct{ spellbookJSON string }
 type gotRunesMsg struct{ runes []Rune }
 type runeCreatedMsg struct{}
 type runeExecutedMsg struct{ output string }
+type gotLoegsMsg struct{ loegs map[string]string }
+type loegSetMsg struct{}
+type loegRemovedMsg struct{}
 type errMsg struct{ err error }
 
 // Model is the main application model.
@@ -42,6 +47,8 @@ type Model struct {
 	menuItems   []string
 	cursor      int
 	runes       []Rune
+	loegs       map[string]string
+	loegKeys    []string // For ordered display and selection
 	inputs      []textinput.Model // For the "Create Rune" form
 	focusIndex  int
 	output      string // To store output from executed runes
@@ -57,7 +64,7 @@ func NewModel(cfg *config.Config) Model {
 		localRunner: local.NewRunner(),
 		state:       checkingSpellbook,
 		pwd:         pwd,
-		menuItems:   []string{"Get Runes", "Create Rune"},
+		menuItems:   []string{"Get Runes", "Create Rune", "Manage Loegs"},
 		inputs:      make([]textinput.Model, 3), // name, desc, cmds
 		focusIndex:  0,
 	}
@@ -152,6 +159,54 @@ func (m *Model) executeRuneCmd() tea.Msg {
 
 	return runeExecutedMsg{output: output}
 }
+
+// getLoegsCmd fetches the list of loegs.
+func (m *Model) getLoegsCmd() tea.Msg {
+	cmd := fmt.Sprintf("loeg list %q", m.pwd)
+	jsonStr, err := m.sshClient.Command(cmd)
+	if err != nil {
+		return errMsg{err}
+	}
+
+	var loegs map[string]string
+	if err := json.Unmarshal([]byte(jsonStr), &loegs); err != nil {
+		return errMsg{err}
+	}
+	return gotLoegsMsg{loegs: loegs}
+}
+
+// setLoegCmd creates or updates a loeg.
+func (m *Model) setLoegCmd() tea.Msg {
+	key := m.inputs[0].Value()
+	val := m.inputs[1].Value()
+	if key == "" || val == "" {
+		return errMsg{fmt.Errorf("key and value are required")}
+	}
+
+	arg := fmt.Sprintf("%s=\"%s\"", key, val)
+	cmd := fmt.Sprintf("loeg set %q %s", m.pwd, arg)
+	_, err := m.sshClient.Command(cmd)
+	if err != nil {
+		return errMsg{err}
+	}
+	return loegSetMsg{}
+}
+
+// removeLoegCmd removes a loeg.
+func (m *Model) removeLoegCmd() tea.Msg {
+	if m.cursor < 0 || m.cursor >= len(m.loegKeys) {
+		return errMsg{fmt.Errorf("invalid loeg selection")}
+	}
+	key := m.loegKeys[m.cursor]
+
+	cmd := fmt.Sprintf("loeg rm %q %s", m.pwd, key)
+	_, err := m.sshClient.Command(cmd)
+	if err != nil {
+		return errMsg{err}
+	}
+	return loegRemovedMsg{}
+}
+
 
 // Init is called once when the application starts.
 func (m Model) Init() tea.Cmd {

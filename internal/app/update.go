@@ -1,6 +1,9 @@
 package app
 
-import tea "github.com/charmbracelet/bubbletea/v2"
+import (
+	"github.com/charmbracelet/bubbles/v2/textinput"
+	tea "github.com/charmbracelet/bubbletea/v2"
+)
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.state {
@@ -12,6 +15,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return updateCreatingRune(msg, m)
 	case executingRune:
 		return updateExecutingRune(msg, m)
+	case showingLoegs:
+		return updateShowingLoegs(msg, m)
+	case creatingLoeg:
+		return updateCreatingLoeg(msg, m)
 	default: // Covers checking, creating, error states
 		return updateInitial(msg, m)
 	}
@@ -62,6 +69,9 @@ func updateReady(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 			case 1: // Create Rune
 				m.state = creatingRune
 				return m, nil
+			case 2: // Manage Loegs
+				m.state = showingLoegs
+				return m, m.getLoegsCmd
 			}
 		}
 	case gotRunesMsg: // This can be received if we come back to 'ready'
@@ -181,4 +191,117 @@ func (m *Model) updateInputs(msg tea.Msg) tea.Cmd {
 		m.inputs[i], cmds[i] = m.inputs[i].Update(msg)
 	}
 	return tea.Batch(cmds...)
+}
+
+// updateShowingLoegs handles updates when displaying the list of loegs.
+func updateShowingLoegs(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c", "q", "esc":
+			m.state = ready
+			m.cursor = 0
+			return m, nil
+		case "up", "k":
+			if m.cursor > 0 {
+				m.cursor--
+			}
+		case "down", "j":
+			if m.cursor < len(m.loegKeys)-1 {
+				m.cursor++
+			}
+		case "d": // Delete
+			if len(m.loegKeys) > 0 {
+				return m, m.removeLoegCmd
+			}
+		case "n": // New
+			m.state = creatingLoeg
+			m.inputs = make([]textinput.Model, 2) // KEY and VALUE
+			m.focusIndex = 0
+
+			var t textinput.Model
+			for i := range m.inputs {
+				t = textinput.New()
+				t.CharLimit = 128
+				switch i {
+				case 0:
+					t.Placeholder = "KEY"
+					t.Focus()
+				case 1:
+					t.Placeholder = "VALUE"
+				}
+				m.inputs[i] = t
+			}
+			return m, textinput.Blink
+		}
+	case gotLoegsMsg:
+		m.loegs = msg.loegs
+		m.loegKeys = make([]string, 0, len(m.loegs))
+		for k := range m.loegs {
+			m.loegKeys = append(m.loegKeys, k)
+		}
+		m.cursor = 0
+		return m, nil
+	case loegRemovedMsg:
+		// Refresh the list after deleting
+		return m, m.getLoegsCmd
+	case errMsg:
+		m.err = msg.err
+		m.state = errState
+		return m, nil
+	}
+	return m, nil
+}
+
+// updateCreatingLoeg handles the form for creating a new loeg.
+func updateCreatingLoeg(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c", "esc":
+			m.state = showingLoegs
+			return m, m.getLoegsCmd // Refresh list
+		case "tab", "shift+tab", "up", "down":
+			s := msg.String()
+			if s == "up" || s == "shift+tab" {
+				m.focusIndex--
+			} else {
+				m.focusIndex++
+			}
+
+			if m.focusIndex > len(m.inputs) {
+				m.focusIndex = 0
+			} else if m.focusIndex < 0 {
+				m.focusIndex = len(m.inputs)
+			}
+
+			cmds := make([]tea.Cmd, len(m.inputs))
+			for i := 0; i <= len(m.inputs)-1; i++ {
+				if i == m.focusIndex {
+					cmds[i] = m.inputs[i].Focus()
+					continue
+				}
+				m.inputs[i].Blur()
+			}
+			return m, tea.Batch(cmds...)
+
+		case "enter":
+			// If the user presses enter on the last input field or the submit button,
+			// submit the form.
+			if m.focusIndex == len(m.inputs)-1 || m.focusIndex == len(m.inputs) {
+				return m, m.setLoegCmd
+			}
+		}
+	case loegSetMsg:
+		m.state = showingLoegs
+		return m, m.getLoegsCmd // Refresh list
+	case errMsg:
+		m.err = msg.err
+		m.state = errState
+		return m, nil
+	}
+
+	// Handle text input updates
+	cmd := m.updateInputs(msg)
+	return m, cmd
 }
