@@ -35,7 +35,7 @@ func (m Model) View() string {
 			}
 			s.WriteString(fmt.Sprintf("%s %s\n", highlight.Render(cursor), item))
 		}
-		s.WriteString(subtle.Render("\n(Use arrows, enter to select, q to quit)\n"))
+
 
 	case showingRunes:
 		s.WriteString(fmt.Sprintf("📜 Runes in %s:\n\n", m.pwd))
@@ -50,7 +50,7 @@ func (m Model) View() string {
 				s.WriteString(fmt.Sprintf("%s %s: %s\n", highlight.Render(cursor), r.Name, r.Description))
 			}
 		}
-		s.WriteString(subtle.Render("\n(enter: run, e: edit, d: delete, esc: back)\n"))
+
 
 	case creatingRune:
 		s.WriteString("✨ Create a New Rune\n\n")
@@ -63,11 +63,7 @@ func (m Model) View() string {
 			submitButton = highlight.Render(submitButton)
 		}
 		s.WriteString(fmt.Sprintf("\n%s\n", submitButton))
-		s.WriteString(
-			subtle.Render(
-				"\n(tab: nav, enter in cmd: new line, backspace in empty cmd: delete line)\n",
-			),
-		)
+
 
 	case editingRune:
 		s.WriteString(
@@ -85,11 +81,7 @@ func (m Model) View() string {
 			submitButton = highlight.Render(submitButton)
 		}
 		s.WriteString(fmt.Sprintf("\n%s\n", submitButton))
-		s.WriteString(
-			subtle.Render(
-				"\n(tab: nav, enter in cmd: new line, backspace in empty cmd: delete line)\n",
-			),
-		)
+
 
 	case executingRune:
 		selectedRune := m.spellbook.Runes[m.cursor]
@@ -99,7 +91,7 @@ func (m Model) View() string {
 		if m.output == "" {
 			s.WriteString("Running commands...")
 		}
-		s.WriteString(subtle.Render("\n(Press enter or esc to return to the rune list)\n"))
+
 
 	case showingLoegs:
 		s.WriteString("🌿 Loegs (Environment Variables):\n\n")
@@ -114,7 +106,7 @@ func (m Model) View() string {
 				s.WriteString(fmt.Sprintf("%s %s = %s\n", highlight.Render(cursor), k, m.spellbook.Loegs[k]))
 			}
 		}
-		s.WriteString(subtle.Render("\n(n: new, d: delete, esc: back)\n"))
+
 
 	case creatingLoeg:
 		s.WriteString("🌿 Create a New Loeg\n\n")
@@ -127,11 +119,11 @@ func (m Model) View() string {
 			submitButton = highlight.Render(submitButton)
 		}
 		s.WriteString(fmt.Sprintf("\n%s\n", submitButton))
-		s.WriteString(subtle.Render("\n(Use tab to navigate, enter to submit, esc to cancel)\n"))
+
 
 	case errState:
 		s.WriteString(fmt.Sprintf("An error occurred: %v\n\n", m.err))
-		s.WriteString(subtle.Render("(Press 'q' to quit)\n"))
+
 	}
 
 	uiElements := s.String()

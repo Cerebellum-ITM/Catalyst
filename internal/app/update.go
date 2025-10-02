@@ -3,6 +3,7 @@ package app
 import (
 	"sort"
 
+	"github.com/charmbracelet/bubbles/v2/key"
 	"github.com/charmbracelet/bubbles/v2/textinput"
 	tea "github.com/charmbracelet/bubbletea/v2"
 )
@@ -20,6 +21,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.StatusBar.AppWith = m.width
 		return m, cmd
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, m.keys.Help):
+			m.help.ShowAll = !m.help.ShowAll
+		}
 	}
 
 	var subCmd tea.Cmd
@@ -74,25 +80,27 @@ func updateInitial(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 func updateReady(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "q":
+		switch {
+		case key.Matches(msg, m.keys.GlobalQuit):
 			return m, tea.Quit
-		case "up", "k":
+		case key.Matches(msg, m.keys.Up):
 			if m.cursor > 0 {
 				m.cursor--
 			}
-		case "down", "j":
+		case key.Matches(msg, m.keys.Down):
 			if m.cursor < len(m.menuItems)-1 {
 				m.cursor++
 			}
-		case "enter":
+		case key.Matches(msg, m.keys.Enter):
 			switch m.cursor {
 			case 0: // Get Runes
 				m.state = showingRunes
+				m.keys = viewingRunesKeys()
 				m.cursor = 0
 				return m, nil
 			case 1: // Create Rune
 				m.state = creatingRune
+				m.keys = formKeys()
 				m.focusIndex = 0
 
 				// Initialize form for creating a rune
@@ -115,6 +123,7 @@ func updateReady(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 				return m, textinput.Blink
 			case 2: // Manage Loegs
 				m.state = showingLoegs
+				m.keys = viewingLoegsKeys()
 				m.cursor = 0
 				m.loegKeys = make([]string, 0, len(m.spellbook.Loegs))
 				for k := range m.spellbook.Loegs {
@@ -127,6 +136,7 @@ func updateReady(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	case gotSpellbookMsg: // This is the new centralized update path
 		m.spellbook = &msg.spellbook
 		m.state = ready // Go back to ready screen after any CRUD
+		m.keys = mainListKeys()
 		return m, nil
 	}
 	return m, nil
@@ -136,31 +146,34 @@ func updateReady(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 func updateShowingRunes(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "q", "esc":
-			m.state = ready // Go back to the main menu
-			m.cursor = 0    // Reset cursor for main menu
+		switch {
+		case key.Matches(msg, m.keys.Esc):
+			m.state = ready
+			m.keys = mainListKeys()
+			m.cursor = 0
 			return m, nil
-		case "up", "k":
+		case key.Matches(msg, m.keys.Up):
 			if m.cursor > 0 {
 				m.cursor--
 			}
-		case "down", "j":
+		case key.Matches(msg, m.keys.Down):
 			if m.cursor < len(m.spellbook.Runes)-1 {
 				m.cursor++
 			}
-		case "enter":
+		case key.Matches(msg, m.keys.Enter):
 			if len(m.spellbook.Runes) > 0 {
 				m.state = executingRune
+				m.keys = executingRuneKeys()
 				return m, m.executeRuneCmd
 			}
-		case "d": // Delete
+		case key.Matches(msg, m.keys.Delete):
 			if len(m.spellbook.Runes) > 0 {
 				return m, m.deleteRuneCmd
 			}
-		case "e": // Edit
+		case key.Matches(msg, m.keys.Edit):
 			if len(m.spellbook.Runes) > 0 {
 				m.state = editingRune
+				m.keys = formKeys()
 				m.focusIndex = 0
 
 				selectedRune := m.spellbook.Runes[m.cursor]
@@ -195,6 +208,7 @@ func updateShowingRunes(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	case gotSpellbookMsg:
 		m.spellbook = &msg.spellbook
 		m.state = showingRunes
+		m.keys = viewingRunesKeys()
 		m.cursor = 0
 		return m, nil
 	case runeDeletedMsg:
@@ -212,11 +226,12 @@ func updateShowingRunes(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 func updateCreatingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "esc":
+		switch {
+		case key.Matches(msg, m.keys.Esc):
 			m.state = ready
+			m.keys = mainListKeys()
 			return m, nil
-		case "enter":
+		case key.Matches(msg, m.keys.Enter):
 			// Only submit if the "Submit" button is focused.
 			if m.focusIndex == len(m.inputs) {
 				return m, m.createRuneCmd
@@ -224,6 +239,7 @@ func updateCreatingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		}
 	case runeCreatedMsg:
 		m.state = ready
+		m.keys = mainListKeys()
 		return m, m.getSpellbookContentCmd // Refresh runes list
 	case errMsg:
 		m.err = msg.err
@@ -239,9 +255,10 @@ func updateCreatingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 func updateExecutingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "q", "esc", "enter":
-			m.state = showingRunes // Go back to the rune list
+		switch {
+		case key.Matches(msg, m.keys.Esc), key.Matches(msg, m.keys.Enter):
+			m.state = showingRunes
+			m.keys = viewingRunesKeys()
 			return m, nil
 		}
 	case runeExecutedMsg:
@@ -255,11 +272,12 @@ func updateExecutingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 func updateEditingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "esc":
+		switch {
+		case key.Matches(msg, m.keys.Esc):
 			m.state = showingRunes
+			m.keys = viewingRunesKeys()
 			return m, m.getSpellbookContentCmd
-		case "enter":
+		case key.Matches(msg, m.keys.Enter):
 			// Only submit if the "Submit" button is focused.
 			if m.focusIndex == len(m.inputs) {
 				return m, m.updateRuneCmd
@@ -267,6 +285,7 @@ func updateEditingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		}
 	case runeUpdatedMsg:
 		m.state = showingRunes
+		m.keys = viewingRunesKeys()
 		return m, m.getSpellbookContentCmd
 	case errMsg:
 		m.err = msg.err
@@ -291,25 +310,27 @@ func (m *Model) updateInputs(msg tea.Msg) tea.Cmd {
 func updateShowingLoegs(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "q", "esc":
+		switch {
+		case key.Matches(msg, m.keys.Esc):
 			m.state = ready
+			m.keys = mainListKeys()
 			m.cursor = 0
 			return m, nil
-		case "up", "k":
+		case key.Matches(msg, m.keys.Up):
 			if m.cursor > 0 {
 				m.cursor--
 			}
-		case "down", "j":
+		case key.Matches(msg, m.keys.Down):
 			if m.cursor < len(m.loegKeys)-1 {
 				m.cursor++
 			}
-		case "d": // Delete
+		case key.Matches(msg, m.keys.Delete):
 			if len(m.loegKeys) > 0 {
 				return m, m.removeLoegCmd
 			}
-		case "n": // New
+		case key.Matches(msg, m.keys.New):
 			m.state = creatingLoeg
+			m.keys = formKeys()
 			m.inputs = make([]textinput.Model, 2) // KEY and VALUE
 			m.focusIndex = 0
 
@@ -331,6 +352,7 @@ func updateShowingLoegs(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	case gotSpellbookMsg:
 		m.spellbook = &msg.spellbook
 		m.state = showingLoegs
+		m.keys = viewingLoegsKeys()
 		m.cursor = 0
 		m.loegKeys = make([]string, 0, len(m.spellbook.Loegs))
 		for k := range m.spellbook.Loegs {
@@ -352,11 +374,13 @@ func updateShowingLoegs(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 func updateCreatingLoeg(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "esc":
+		switch {
+		case key.Matches(msg, m.keys.Esc):
 			m.state = showingLoegs
+			m.keys = viewingLoegsKeys()
 			return m, m.getSpellbookContentCmd // Refresh list
-		case "tab", "shift+tab", "up", "down":
+		case key.Matches(msg, m.keys.Up), key.Matches(msg, m.keys.Down):
+			// Handle tab focus logic
 			s := msg.String()
 			if s == "up" || s == "shift+tab" {
 				m.focusIndex--
@@ -380,7 +404,7 @@ func updateCreatingLoeg(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 			}
 			return m, tea.Batch(cmds...)
 
-		case "enter":
+		case key.Matches(msg, m.keys.Enter):
 			// If the user presses enter on the last input field or the submit button,
 			// submit the form.
 			if m.focusIndex == len(m.inputs)-1 || m.focusIndex == len(m.inputs) {
@@ -389,6 +413,7 @@ func updateCreatingLoeg(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		}
 	case loegSetMsg:
 		m.state = showingLoegs
+		m.keys = viewingLoegsKeys()
 		return m, m.getSpellbookContentCmd // Refresh list
 	case errMsg:
 		m.err = msg.err
