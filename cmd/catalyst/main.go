@@ -4,6 +4,7 @@ import (
 	"catalyst/internal/app"
 	"catalyst/internal/config"
 	"catalyst/internal/db"
+	"flag"
 	"fmt"
 	"os"
 
@@ -11,7 +12,17 @@ import (
 	"github.com/charmbracelet/log"
 )
 
+const version = "0.1.0"
+
 func main() {
+	versionFlag := flag.Bool("version", false, "Print version and exit")
+	flag.Parse()
+
+	if *versionFlag {
+		fmt.Printf("Catalyst version %s\n", version)
+		os.Exit(0)
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("could not load config: %v", err)
@@ -23,7 +34,7 @@ func main() {
 	}
 	defer db.Close()
 
-	m := app.NewModel(cfg, db)
+	m := app.NewModel(cfg, db, version)
 	p := tea.NewProgram(m)
 
 	if _, err := p.Run(); err != nil {

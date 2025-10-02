@@ -69,10 +69,10 @@ type Model struct {
 	pwd         string // Current working directory (spellbook path)
 	menuItems   []string
 	cursor      int
-	spellbook   *Spellbook          // Our in-memory cache
-	loegKeys    []string            // For ordered display and selection
-	history     []db.HistoryEntry   // For the history view
-	inputs      []textinput.Model   // For the "Create Rune" form
+	spellbook   *Spellbook        // Our in-memory cache
+	loegKeys    []string          // For ordered display and selection
+	history     []db.HistoryEntry // For the history view
+	inputs      []textinput.Model // For the "Create Rune" form
 	focusIndex  int
 	output      string // To store output from executed runes
 	err         error
@@ -80,10 +80,11 @@ type Model struct {
 	height      int
 	StatusBar   statusbar.StatusBar
 	Theme       *styles.Theme
+	Version     string
 }
 
 // NewModel creates a new application model.
-func NewModel(cfg *config.Config, db *db.Database) Model {
+func NewModel(cfg *config.Config, db *db.Database, version string) Model {
 	pwd, _ := os.Getwd() // Get PWD once at the start
 
 	theme := styles.NewCharmtoneTheme()
@@ -95,6 +96,7 @@ func NewModel(cfg *config.Config, db *db.Database) Model {
 		statusbar.LevelInfo,
 		50,
 		theme,
+		version,
 	)
 	statusbar.ShowSpinner = true
 
@@ -111,6 +113,7 @@ func NewModel(cfg *config.Config, db *db.Database) Model {
 		focusIndex:  0,
 		Theme:       theme,
 		StatusBar:   statusbar,
+		Version:     version,
 	}
 
 	// Initialize text inputs for the create rune form
@@ -330,7 +333,7 @@ func (m *Model) deleteRuneCmd() tea.Msg {
 	return m.getSpellbookContentCmd() // Refresh cache
 }
 
-// Init is called once when the application starts. 
+// Init is called once when the application starts.
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		tea.EnterAltScreen,

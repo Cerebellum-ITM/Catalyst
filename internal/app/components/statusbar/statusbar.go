@@ -16,9 +16,10 @@ type StatusBar struct {
 	Spinner     spinner.Model
 	ShowSpinner bool
 	AppWith     int
+	Version     string
 }
 
-func New(content string, level LogLevel, with int, theme *styles.Theme) StatusBar {
+func New(content string, level LogLevel, with int, theme *styles.Theme, version string) StatusBar {
 	s := spinner.New()
 	s.Spinner = spinner.Points
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.BrightMagenta)
@@ -29,6 +30,7 @@ func New(content string, level LogLevel, with int, theme *styles.Theme) StatusBa
 		ShowSpinner: false,
 		theme:       theme,
 		AppWith:     with,
+		Version:     version,
 	}
 }
 
@@ -75,7 +77,7 @@ func (sb StatusBar) Render() string {
 	version := sb.theme.AppStyles().Base.
 		Background(sb.theme.Black).
 		Foreground(sb.theme.White).
-		Padding(0, 1).SetString("v0.1.0")
+		Padding(0, 1).SetString(sb.Version)
 
 	prefixStyle := sb.theme.AppStyles().Base.Padding(0, 2)
 	fillContent := sb.theme.AppStyles().Base
