@@ -61,6 +61,8 @@ type Model struct {
 	focusIndex  int
 	output      string // To store output from executed runes
 	err         error
+	width       int
+	height      int
 	StatusBar   statusbar.StatusBar
 	Theme       *styles.Theme
 }
@@ -291,5 +293,8 @@ func (m *Model) deleteRuneCmd() tea.Msg {
 
 // Init is called once when the application starts.
 func (m Model) Init() tea.Cmd {
-	return m.getSpellbookContentCmd
+	return tea.Batch(
+		tea.EnterAltScreen,
+		m.getSpellbookContentCmd, // Tu comando original
+	)
 }

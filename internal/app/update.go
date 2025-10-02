@@ -8,24 +8,43 @@ import (
 )
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	var cmd tea.Cmd
+	m.StatusBar, cmd = m.StatusBar.Update(msg)
+	cmds = append(cmds, cmd)
+
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		var cmd tea.Cmd
+		m.width = msg.Width
+		m.height = msg.Height
+		m.StatusBar.AppWith = m.width
+		return m, cmd
+	}
+
+	var subCmd tea.Cmd
+	var subModel tea.Model
+
 	switch m.state {
 	case ready:
-		return updateReady(msg, m)
+		subModel, subCmd = updateReady(msg, m)
 	case showingRunes:
-		return updateShowingRunes(msg, m)
+		subModel, subCmd = updateShowingRunes(msg, m)
 	case creatingRune:
-		return updateCreatingRune(msg, m)
+		subModel, subCmd = updateCreatingRune(msg, m)
 	case executingRune:
-		return updateExecutingRune(msg, m)
+		subModel, subCmd = updateExecutingRune(msg, m)
 	case showingLoegs:
-		return updateShowingLoegs(msg, m)
+		subModel, subCmd = updateShowingLoegs(msg, m)
 	case creatingLoeg:
-		return updateCreatingLoeg(msg, m)
+		subModel, subCmd = updateCreatingLoeg(msg, m)
 	case editingRune:
-		return updateEditingRune(msg, m)
+		subModel, subCmd = updateEditingRune(msg, m)
 	default: // Covers checking, creating, error states
-		return updateInitial(msg, m)
+		subModel, subCmd = updateInitial(msg, m)
 	}
+	cmds = append(cmds, subCmd)
+	return subModel, tea.Batch(cmds...)
 }
 
 // updateInitial handles updates during the initial spellbook check/creation.
@@ -145,7 +164,7 @@ func updateShowingRunes(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 				m.focusIndex = 0
 
 				selectedRune := m.spellbook.Runes[m.cursor]
-				
+
 				// Start with 3 inputs: name, desc, first command
 				m.inputs = make([]textinput.Model, 2+len(selectedRune.Commands))
 
@@ -211,7 +230,7 @@ func updateCreatingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		m.state = errState
 		return m, nil
 	}
-	
+
 	// Handle form logic
 	return updateRuneForm(msg, m)
 }
@@ -254,11 +273,10 @@ func updateEditingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		m.state = errState
 		return m, nil
 	}
-	
+
 	// Handle form logic
 	return updateRuneForm(msg, m)
 }
-
 
 // updateInputs passes messages to the textinput components.
 func (m *Model) updateInputs(msg tea.Msg) tea.Cmd {
