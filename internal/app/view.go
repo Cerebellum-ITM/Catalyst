@@ -8,7 +8,6 @@ import (
 )
 
 var (
-	subtle        = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	highlight     = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	VerticalSpace = lipgloss.NewStyle().Height(1).Render("")
 )
@@ -18,24 +17,21 @@ func (m Model) View() string {
 
 	statusBarContent := m.StatusBar.Render()
 	helpView := lipgloss.NewStyle().Padding(0, 2).SetString(m.help.View(m.keys)).String()
+	contentHeight := m.height
+	statusBarH := lipgloss.Height(statusBarContent)
+	VerticalSpaceH := 2 * lipgloss.Height(VerticalSpace)
+	helpViewH := lipgloss.Height(helpView)
+	availableHeightForMainContent := contentHeight - statusBarH - VerticalSpaceH - helpViewH
 
 	switch m.state {
 	case checkingSpellbook:
 		m.StatusBar.Content = "Checking for Spellbook..."
 	case creatingSpellbook:
-		s.WriteString("Creating Spellbook...")
+		m.StatusBar.Content = "Creating Spellbook..."
 	case ready:
-		s.WriteString(fmt.Sprintf("Spellbook ready at: %s\n\n", m.pwd))
-		s.WriteString("What would you like to do?\n\n")
-
-		for i, item := range m.menuItems {
-			cursor := " "
-			if m.cursor == i {
-				cursor = ">"
-			}
-			s.WriteString(fmt.Sprintf("%s %s\n", highlight.Render(cursor), item))
-		}
-
+		m.menuItems.SetWidth(m.width)
+		m.menuItems.SetHeight(availableHeightForMainContent)
+		s.WriteString(m.menuItems.View())
 
 	case showingRunes:
 		s.WriteString(fmt.Sprintf("Runes in %s:\n\n", m.pwd))
@@ -51,7 +47,6 @@ func (m Model) View() string {
 			}
 		}
 
-
 	case creatingRune:
 		s.WriteString("Create a New Rune\n\n")
 		for i := range m.inputs {
@@ -63,7 +58,6 @@ func (m Model) View() string {
 			submitButton = highlight.Render(submitButton)
 		}
 		s.WriteString(fmt.Sprintf("\n%s\n", submitButton))
-
 
 	case editingRune:
 		s.WriteString(
@@ -82,7 +76,6 @@ func (m Model) View() string {
 		}
 		s.WriteString(fmt.Sprintf("\n%s\n", submitButton))
 
-
 	case executingRune:
 		selectedRune := m.spellbook.Runes[m.cursor]
 		s.WriteString(fmt.Sprintf("Executing Rune: %s\n\n", highlight.Render(selectedRune.Name)))
@@ -91,7 +84,6 @@ func (m Model) View() string {
 		if m.output == "" {
 			s.WriteString("Running commands...")
 		}
-
 
 	case showingLoegs:
 		s.WriteString("Loegs (Environment Variables):\n\n")
@@ -107,7 +99,6 @@ func (m Model) View() string {
 			}
 		}
 
-
 	case creatingLoeg:
 		s.WriteString("Create a New Loeg\n\n")
 		for i := range m.inputs {
@@ -120,10 +111,9 @@ func (m Model) View() string {
 		}
 		s.WriteString(fmt.Sprintf("\n%s\n", submitButton))
 
-
 	case errState:
 		s.WriteString(fmt.Sprintf("An error occurred: %v\n\n", m.err))
-	
+
 	case showingHistory:
 		s.WriteString("Execution History:\n\n")
 		if len(m.history) == 0 {

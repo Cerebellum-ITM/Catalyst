@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"catalyst/internal/app/components/core"
 	"catalyst/internal/app/components/statusbar"
 	"catalyst/internal/app/styles"
 	"catalyst/internal/config"
@@ -16,6 +17,7 @@ import (
 	"catalyst/internal/utils"
 
 	"github.com/charmbracelet/bubbles/v2/help"
+	"github.com/charmbracelet/bubbles/v2/list"
 	"github.com/charmbracelet/bubbles/v2/textinput"
 	tea "github.com/charmbracelet/bubbletea/v2"
 )
@@ -70,7 +72,7 @@ type Model struct {
 	state           state
 	previousState   state
 	pwd             string // Current working directory (spellbook path)
-	menuItems       []string
+	menuItems       list.Model
 	cursor          int
 	spellbook       *Spellbook        // Our in-memory cache
 	loegKeys        []string          // For ordered display and selection
@@ -112,7 +114,7 @@ func NewModel(cfg *config.Config, db *db.Database, version string) Model {
 		db:              db,
 		state:           checkingSpellbook,
 		pwd:             pwd,
-		menuItems:       []string{"Get Runes", "Create Rune", "Manage Loegs", "View History"},
+		menuItems:       core.NewMainMenu(*theme),
 		inputs:          make([]textinput.Model, 3), // name, desc, cmds
 		focusIndex:      0,
 		Theme:           theme,

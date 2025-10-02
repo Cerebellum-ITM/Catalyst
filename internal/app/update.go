@@ -3,9 +3,11 @@ package app
 import (
 	"sort"
 
+	"catalyst/internal/app/components/core"
 	"catalyst/internal/app/components/statusbar"
 
 	"github.com/charmbracelet/bubbles/v2/key"
+	"github.com/charmbracelet/bubbles/v2/list"
 	"github.com/charmbracelet/bubbles/v2/textinput"
 	tea "github.com/charmbracelet/bubbletea/v2"
 )
@@ -86,21 +88,25 @@ func (m *Model) getDefaultStatusBarContent() string {
 func updateInitial(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if msg.String() == "ctrl+c" || msg.String() == "q" {
+		switch {
+		case key.Matches(msg, m.keys.Quit):
 			return m, tea.Quit
 		}
 	case gotSpellbookMsg:
 		m.spellbook = &msg.spellbook
 		m.state = ready
 		m.StatusBar.StopSpinner()
-		m.StatusBar.Content = "Ready"
+		m.StatusBar.Content = "Spellbook found and loaded"
 		m.StatusBar.Level = statusbar.LevelSuccess
+		m.menuItems.ResetFilter()
+		m.menuItems.SetFilterText("")
+		m.menuItems.SetFilterState(list.FilterState(list.Filtering))
 		return m, clearStatusCmd()
 	case errMsg:
 		if msg.err == nil { // This means the spellbook doesn't exist, time to create it
 			m.state = creatingSpellbook
-			m.StatusBar.Content = "Creating Spellbook..."
-			m.StatusBar.Level = statusbar.LevelInfo
+			m.StatusBar.Content = "Spellbook not found creating a new one...."
+			m.StatusBar.Level = statusbar.LevelFatal
 			return m, tea.Batch(m.StatusBar.StartSpinner(), m.createSpellbookCmd)
 		}
 		m.err = msg.err
@@ -115,72 +121,79 @@ func updateInitial(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 
 // updateReady handles updates when the main menu is active.
 func updateReady(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if m.menuItems.FilterState() == list.Filtering {
+			switch {
+			case key.Matches(msg, m.keys.Up):
+				m.menuItems.CursorUp()
+				return m, nil
+			case key.Matches(msg, m.keys.Down):
+				m.menuItems.CursorDown()
+				return m, nil
+			}
+		}
 		switch {
 		case key.Matches(msg, m.keys.GlobalQuit):
 			return m, tea.Quit
-		case key.Matches(msg, m.keys.Up):
-			if m.cursor > 0 {
-				m.cursor--
-			}
-		case key.Matches(msg, m.keys.Down):
-			if m.cursor < len(m.menuItems)-1 {
-				m.cursor++
-			}
 		case key.Matches(msg, m.keys.Enter):
-			switch m.cursor {
-			case 0: // Get Runes
-				m.state = showingRunes
-				m.keys = viewingRunesKeys()
-				m.StatusBar.Content = "Viewing Runes"
-				m.StatusBar.Level = statusbar.LevelInfo
-				m.cursor = 0
-				return m, nil
-			case 1: // Create Rune
-				m.state = creatingRune
-				m.keys = formKeys()
-				m.StatusBar.Content = "Creating a new Rune"
-				m.StatusBar.Level = statusbar.LevelInfo
-				m.focusIndex = 0
+			selectedItem := m.menuItems.SelectedItem()
+			if item, ok := selectedItem.(core.MenuItem); ok {
+				switch item.Value() {
+				case 0: // Get Runes
+					m.state = showingRunes
+					m.keys = viewingRunesKeys()
+					m.StatusBar.Content = "Viewing Runes"
+					m.StatusBar.Level = statusbar.LevelInfo
+					m.cursor = 0
+					return m, nil
+				case 1: // Create Rune
+					m.state = creatingRune
+					m.keys = formKeys()
+					m.StatusBar.Content = "Creating a new Rune"
+					m.StatusBar.Level = statusbar.LevelInfo
+					m.focusIndex = 0
 
-				// Initialize form for creating a rune
-				m.inputs = make([]textinput.Model, 3) // name, desc, one command
-				var t textinput.Model
-				for i := range m.inputs {
-					t = textinput.New()
-					t.CharLimit = 256
-					switch i {
-					case 0:
-						t.Placeholder = "Rune Name"
-						t.Focus()
-					case 1:
-						t.Placeholder = "Description"
-					case 2:
-						t.Placeholder = "Command"
+					// Initialize form for creating a rune
+					m.inputs = make([]textinput.Model, 3) // name, desc, one command
+					var t textinput.Model
+					for i := range m.inputs {
+						t = textinput.New()
+						t.CharLimit = 256
+						switch i {
+						case 0:
+							t.Placeholder = "Rune Name"
+							t.Focus()
+						case 1:
+							t.Placeholder = "Description"
+						case 2:
+							t.Placeholder = "Command"
+						}
+						m.inputs[i] = t
 					}
-					m.inputs[i] = t
+					return m, textinput.Blink
+				case 2: // Manage Loegs
+					m.state = showingLoegs
+					m.keys = viewingLoegsKeys()
+					m.StatusBar.Content = "Viewing Loegs"
+					m.StatusBar.Level = statusbar.LevelInfo
+					m.cursor = 0
+					m.loegKeys = make([]string, 0, len(m.spellbook.Loegs))
+					for k := range m.spellbook.Loegs {
+						m.loegKeys = append(m.loegKeys, k)
+					}
+					sort.Strings(m.loegKeys)
+					return m, nil
+				case 3: // View History
+					m.state = showingHistory
+					// m.keys = viewingHistoryKeys() // TODO: Define these keys
+					m.StatusBar.Content = "Viewing History"
+					m.StatusBar.Level = statusbar.LevelInfo
+					m.cursor = 0
+					return m, m.getHistoryCmd
 				}
-				return m, textinput.Blink
-			case 2: // Manage Loegs
-				m.state = showingLoegs
-				m.keys = viewingLoegsKeys()
-				m.StatusBar.Content = "Viewing Loegs"
-				m.StatusBar.Level = statusbar.LevelInfo
-				m.cursor = 0
-				m.loegKeys = make([]string, 0, len(m.spellbook.Loegs))
-				for k := range m.spellbook.Loegs {
-					m.loegKeys = append(m.loegKeys, k)
-				}
-				sort.Strings(m.loegKeys)
-				return m, nil
-			case 3: // View History
-				m.state = showingHistory
-				// m.keys = viewingHistoryKeys() // TODO: Define these keys
-				m.StatusBar.Content = "Viewing History"
-				m.StatusBar.Level = statusbar.LevelInfo
-				m.cursor = 0
-				return m, m.getHistoryCmd
 			}
 		}
 	case gotSpellbookMsg: // This is the new centralized update path
@@ -192,7 +205,8 @@ func updateReady(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		m.StatusBar.Level = statusbar.LevelSuccess
 		return m, clearStatusCmd()
 	}
-	return m, nil
+	m.menuItems, cmd = m.menuItems.Update(msg)
+	return m, cmd
 }
 
 // updateShowingRunes handles updates when displaying the list of runes.
