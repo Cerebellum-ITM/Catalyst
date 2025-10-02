@@ -60,10 +60,18 @@ func (m *Model) getDefaultStatusBarContent() string {
 	switch m.state {
 	case ready:
 		return "Main Menu"
-	case showingRunes, creatingRune, editingRune, executingRune:
+	case showingRunes:
 		return "Viewing Runes"
-	case showingLoegs, creatingLoeg:
+	case creatingRune:
+		return "Creating a new Rune"
+	case editingRune:
+		return "Editing Rune"
+	case executingRune:
+		return "Executing Rune"
+	case showingLoegs:
 		return "Viewing Loegs"
+	case creatingLoeg:
+		return "Creating a new Loeg"
 	default:
 		return "Ready"
 	}
