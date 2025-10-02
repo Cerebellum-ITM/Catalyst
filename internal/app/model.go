@@ -66,6 +66,7 @@ type Model struct {
 	localRunner *local.Runner
 	db          *db.Database
 	state       state
+	previousState state
 	pwd         string // Current working directory (spellbook path)
 	menuItems   []string
 	cursor      int
@@ -200,31 +201,32 @@ func (m *Model) createRuneCmd() tea.Msg {
 	return m.getSpellbookContentCmd() // Refresh cache
 }
 
-// executeRuneCmd runs the commands for a selected rune.
+// executeRuneCmd runs the commands for a selected rune from the main list.
 func (m *Model) executeRuneCmd() tea.Msg {
 	if m.cursor < 0 || m.cursor >= len(m.spellbook.Runes) {
 		return errMsg{fmt.Errorf("invalid rune selection")}
 	}
 	selectedRune := m.spellbook.Runes[m.cursor]
-
-	output, err := m.localRunner.ExecuteCommands(selectedRune.Commands)
-	if err != nil {
-		return runeExecutedMsg{output: output}
-	}
-	return runeExecutedMsg{output: output}
+	return m.executeSpecificRuneCmd(selectedRune)()
 }
 
-// saveHistoryCmd saves the execution of a rune to the database.
-func (m *Model) saveHistoryCmd() tea.Msg {
-	if m.cursor < 0 || m.cursor >= len(m.spellbook.Runes) {
-		return errMsg{fmt.Errorf("invalid rune selection for history")}
+// executeSpecificRuneCmd creates a tea.Cmd that saves and executes a specific rune.
+func (m *Model) executeSpecificRuneCmd(r Rune) tea.Cmd {
+	return func() tea.Msg {
+		// Save to history first
+		if err := m.db.AddHistoryEntry(r.Name, m.spellbook.Name); err != nil {
+			return errMsg{err}
+		}
+
+		// Then execute the commands
+		output, err := m.localRunner.ExecuteCommands(r.Commands)
+		if err != nil {
+			// Even if execution fails, we return the output to the user.
+			// The history entry is already saved.
+			return runeExecutedMsg{output: output}
+		}
+		return runeExecutedMsg{output: output}
 	}
-	selectedRune := m.spellbook.Runes[m.cursor]
-	err := m.db.AddHistoryEntry(selectedRune.Name, m.spellbook.Name)
-	if err != nil {
-		return errMsg{err}
-	}
-	return nil // No message needed on success
 }
 
 // getHistoryCmd retrieves the execution history from the database.

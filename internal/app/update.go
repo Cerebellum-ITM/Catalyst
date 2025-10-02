@@ -216,6 +216,7 @@ func updateShowingRunes(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 			}
 		case key.Matches(msg, m.keys.Enter):
 			if len(m.spellbook.Runes) > 0 {
+				m.previousState = showingRunes
 				m.state = executingRune
 				m.keys = executingRuneKeys()
 				m.StatusBar.Content = "Executing rune..."
@@ -327,10 +328,16 @@ func updateExecutingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.keys.Esc), key.Matches(msg, m.keys.Enter):
+			// Return to the previous state (either showingRunes or showingHistory)
+			if m.previousState == showingHistory {
+				m.state = showingHistory
+				// m.keys = viewingHistoryKeys() // TODO
+				m.StatusBar.Content = "Viewing History"
+				return m, m.getHistoryCmd // Refresh history view
+			}
 			m.state = showingRunes
 			m.keys = viewingRunesKeys()
 			m.StatusBar.Content = "Viewing Runes"
-			m.StatusBar.Level = statusbar.LevelInfo
 			return m, nil
 		}
 	case runeExecutedMsg:
@@ -338,7 +345,7 @@ func updateExecutingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		m.StatusBar.StopSpinner()
 		m.StatusBar.Content = "Execution finished"
 		m.StatusBar.Level = statusbar.LevelSuccess
-		return m, tea.Batch(m.saveHistoryCmd, clearStatusCmd())
+		return m, clearStatusCmd()
 	}
 	return m, nil
 }
@@ -553,6 +560,30 @@ func updateShowingHistory(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Down):
 			if m.cursor < len(m.history)-1 {
 				m.cursor++
+			}
+		case key.Matches(msg, m.keys.Enter):
+			if m.cursor >= 0 && m.cursor < len(m.history) {
+				selectedEntry := m.history[m.cursor]
+				var selectedRune *Rune
+				for i := range m.spellbook.Runes {
+					if m.spellbook.Runes[i].Name == selectedEntry.RuneID {
+						selectedRune = &m.spellbook.Runes[i]
+						break
+					}
+				}
+
+				if selectedRune != nil {
+					m.previousState = showingHistory
+					m.state = executingRune
+					m.keys = executingRuneKeys()
+					m.StatusBar.Content = "Executing rune from history..."
+					m.StatusBar.Level = statusbar.LevelInfo
+					return m, tea.Batch(m.StatusBar.StartSpinner(), m.executeSpecificRuneCmd(*selectedRune))
+				}
+				// Optional: Handle case where rune is not found anymore
+				m.StatusBar.Content = "Rune from history not found in current spellbook"
+				m.StatusBar.Level = statusbar.LevelWarning
+				return m, clearStatusCmd()
 			}
 		}
 	case gotHistoryMsg:
