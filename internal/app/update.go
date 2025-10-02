@@ -1,6 +1,7 @@
 package app
 
 import (
+	"catalyst/internal/app/components/statusbar"
 	"sort"
 
 	"github.com/charmbracelet/bubbles/v2/key"
@@ -16,16 +17,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		var cmd tea.Cmd
 		m.width = msg.Width
 		m.height = msg.Height
 		m.StatusBar.AppWith = m.width
-		return m, cmd
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.keys.Help):
 			m.help.ShowAll = !m.help.ShowAll
 		}
+	case clearStatusMsg:
+		m.StatusBar.Content = m.getDefaultStatusBarContent()
+		m.StatusBar.Level = statusbar.LevelInfo
+		return m, nil
 	}
 
 	var subCmd tea.Cmd
@@ -46,13 +49,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		subModel, subCmd = updateCreatingLoeg(msg, m)
 	case editingRune:
 		subModel, subCmd = updateEditingRune(msg, m)
-	default: // Covers checking, creating, error states
+	default:
 		subModel, subCmd = updateInitial(msg, m)
 	}
 	cmds = append(cmds, subCmd)
 	return subModel, tea.Batch(cmds...)
 }
 
+func (m *Model) getDefaultStatusBarContent() string {
+	switch m.state {
+	case ready:
+		return "Main Menu"
+	case showingRunes, creatingRune, editingRune, executingRune:
+		return "Viewing Runes"
+	case showingLoegs, creatingLoeg:
+		return "Viewing Loegs"
+	default:
+		return "Ready"
+	}
+}
 // updateInitial handles updates during the initial spellbook check/creation.
 func updateInitial(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -63,15 +78,23 @@ func updateInitial(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	case gotSpellbookMsg:
 		m.spellbook = &msg.spellbook
 		m.state = ready
-		return m, nil
+		m.StatusBar.StopSpinner()
+		m.StatusBar.Content = "Ready"
+		m.StatusBar.Level = statusbar.LevelSuccess
+		return m, clearStatusCmd()
 	case errMsg:
-		if msg.err == nil {
+		if msg.err == nil { // This means the spellbook doesn't exist, time to create it
 			m.state = creatingSpellbook
-			return m, m.createSpellbookCmd
+			m.StatusBar.Content = "Creating Spellbook..."
+			m.StatusBar.Level = statusbar.LevelInfo
+			return m, tea.Batch(m.StatusBar.StartSpinner(), m.createSpellbookCmd)
 		}
 		m.err = msg.err
 		m.state = errState
-		return m, nil
+		m.StatusBar.StopSpinner()
+		m.StatusBar.Content = "Error: " + msg.err.Error()
+		m.StatusBar.Level = statusbar.LevelError
+		return m, clearStatusCmd()
 	}
 	return m, nil
 }
@@ -96,11 +119,15 @@ func updateReady(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 			case 0: // Get Runes
 				m.state = showingRunes
 				m.keys = viewingRunesKeys()
+				m.StatusBar.Content = "Viewing Runes"
+				m.StatusBar.Level = statusbar.LevelInfo
 				m.cursor = 0
 				return m, nil
 			case 1: // Create Rune
 				m.state = creatingRune
 				m.keys = formKeys()
+				m.StatusBar.Content = "Creating a new Rune"
+				m.StatusBar.Level = statusbar.LevelInfo
 				m.focusIndex = 0
 
 				// Initialize form for creating a rune
@@ -124,6 +151,8 @@ func updateReady(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 			case 2: // Manage Loegs
 				m.state = showingLoegs
 				m.keys = viewingLoegsKeys()
+				m.StatusBar.Content = "Viewing Loegs"
+				m.StatusBar.Level = statusbar.LevelInfo
 				m.cursor = 0
 				m.loegKeys = make([]string, 0, len(m.spellbook.Loegs))
 				for k := range m.spellbook.Loegs {
@@ -135,9 +164,12 @@ func updateReady(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		}
 	case gotSpellbookMsg: // This is the new centralized update path
 		m.spellbook = &msg.spellbook
-		m.state = ready // Go back to ready screen after any CRUD
+		m.state = ready
 		m.keys = mainListKeys()
-		return m, nil
+		m.StatusBar.StopSpinner()
+		m.StatusBar.Content = "Ready"
+		m.StatusBar.Level = statusbar.LevelSuccess
+		return m, clearStatusCmd()
 	}
 	return m, nil
 }
@@ -150,6 +182,8 @@ func updateShowingRunes(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Esc):
 			m.state = ready
 			m.keys = mainListKeys()
+			m.StatusBar.Content = "Main Menu"
+			m.StatusBar.Level = statusbar.LevelInfo
 			m.cursor = 0
 			return m, nil
 		case key.Matches(msg, m.keys.Up):
@@ -164,37 +198,39 @@ func updateShowingRunes(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 			if len(m.spellbook.Runes) > 0 {
 				m.state = executingRune
 				m.keys = executingRuneKeys()
-				return m, m.executeRuneCmd
+				m.StatusBar.Content = "Executing rune..."
+				m.StatusBar.Level = statusbar.LevelInfo
+				return m, tea.Batch(m.StatusBar.StartSpinner(), m.executeRuneCmd)
 			}
 		case key.Matches(msg, m.keys.Delete):
 			if len(m.spellbook.Runes) > 0 {
-				return m, m.deleteRuneCmd
+				m.StatusBar.Content = "Deleting rune..."
+				m.StatusBar.Level = statusbar.LevelWarning
+				return m, tea.Batch(m.StatusBar.StartSpinner(), m.deleteRuneCmd)
 			}
 		case key.Matches(msg, m.keys.Edit):
 			if len(m.spellbook.Runes) > 0 {
 				m.state = editingRune
 				m.keys = formKeys()
+				m.StatusBar.Content = "Editing rune"
+				m.StatusBar.Level = statusbar.LevelInfo
 				m.focusIndex = 0
 
 				selectedRune := m.spellbook.Runes[m.cursor]
 
-				// Start with 3 inputs: name, desc, first command
 				m.inputs = make([]textinput.Model, 2+len(selectedRune.Commands))
 
-				// Setup Name
 				t := textinput.New()
 				t.Placeholder = "Rune Name"
 				t.SetValue(selectedRune.Name)
 				t.Focus()
 				m.inputs[0] = t
 
-				// Setup Description
 				t = textinput.New()
 				t.Placeholder = "Description"
 				t.SetValue(selectedRune.Description)
 				m.inputs[1] = t
 
-				// Setup Command fields
 				for i, cmd := range selectedRune.Commands {
 					t = textinput.New()
 					t.Placeholder = "Command"
@@ -210,14 +246,19 @@ func updateShowingRunes(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		m.state = showingRunes
 		m.keys = viewingRunesKeys()
 		m.cursor = 0
-		return m, nil
+		m.StatusBar.StopSpinner()
+		m.StatusBar.Content = "Updated runes list"
+		m.StatusBar.Level = statusbar.LevelSuccess
+		return m, clearStatusCmd()
 	case runeDeletedMsg:
-		// After a rune is deleted, refresh the list.
 		return m, m.getSpellbookContentCmd
 	case errMsg:
 		m.err = msg.err
 		m.state = errState
-		return m, nil
+		m.StatusBar.StopSpinner()
+		m.StatusBar.Content = "Error: " + msg.err.Error()
+		m.StatusBar.Level = statusbar.LevelError
+		return m, clearStatusCmd()
 	}
 	return m, nil
 }
@@ -230,25 +271,34 @@ func updateCreatingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Esc):
 			m.state = ready
 			m.keys = mainListKeys()
+			m.StatusBar.Content = "Main Menu"
+			m.StatusBar.Level = statusbar.LevelInfo
 			return m, nil
 		case key.Matches(msg, m.keys.Enter):
-			// Only submit if the "Submit" button is focused.
 			if m.focusIndex == len(m.inputs) {
-				return m, m.createRuneCmd
+				m.StatusBar.Content = "Creating rune..."
+				m.StatusBar.Level = statusbar.LevelInfo
+				return m, tea.Batch(m.StatusBar.StartSpinner(), m.createRuneCmd)
 			}
 		}
-	case runeCreatedMsg:
-		m.state = ready
-		m.keys = mainListKeys()
-		return m, m.getSpellbookContentCmd // Refresh runes list
+	case gotSpellbookMsg: // Success message
+		m.spellbook = &msg.spellbook
+		m.state = showingRunes
+		m.keys = viewingRunesKeys()
+		m.StatusBar.StopSpinner()
+		m.StatusBar.Content = "Successfully created rune"
+		m.StatusBar.Level = statusbar.LevelSuccess
+		return m, clearStatusCmd()
 	case errMsg:
 		m.err = msg.err
 		m.state = errState
-		return m, nil
+		m.StatusBar.StopSpinner()
+		m.StatusBar.Content = "Error: " + msg.err.Error()
+		m.StatusBar.Level = statusbar.LevelError
+		return m, clearStatusCmd()
 	}
-
-	// Handle form logic
-	return updateRuneForm(msg, m)
+	model, cmd := updateRuneForm(msg, m)
+	return model, cmd
 }
 
 // updateExecutingRune handles updates while a rune is running.
@@ -259,11 +309,16 @@ func updateExecutingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Esc), key.Matches(msg, m.keys.Enter):
 			m.state = showingRunes
 			m.keys = viewingRunesKeys()
+			m.StatusBar.Content = "Viewing Runes"
+			m.StatusBar.Level = statusbar.LevelInfo
 			return m, nil
 		}
 	case runeExecutedMsg:
 		m.output = msg.output
-		return m, nil
+		m.StatusBar.StopSpinner()
+		m.StatusBar.Content = "Execution finished"
+		m.StatusBar.Level = statusbar.LevelSuccess
+		return m, clearStatusCmd()
 	}
 	return m, nil
 }
@@ -278,23 +333,30 @@ func updateEditingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 			m.keys = viewingRunesKeys()
 			return m, m.getSpellbookContentCmd
 		case key.Matches(msg, m.keys.Enter):
-			// Only submit if the "Submit" button is focused.
 			if m.focusIndex == len(m.inputs) {
-				return m, m.updateRuneCmd
+				m.StatusBar.Content = "Updating rune..."
+				m.StatusBar.Level = statusbar.LevelInfo
+				return m, tea.Batch(m.StatusBar.StartSpinner(), m.updateRuneCmd)
 			}
 		}
-	case runeUpdatedMsg:
+	case gotSpellbookMsg: // Success message
+		m.spellbook = &msg.spellbook
 		m.state = showingRunes
 		m.keys = viewingRunesKeys()
-		return m, m.getSpellbookContentCmd
+		m.StatusBar.StopSpinner()
+		m.StatusBar.Content = "Successfully updated rune"
+		m.StatusBar.Level = statusbar.LevelSuccess
+		return m, clearStatusCmd()
 	case errMsg:
 		m.err = msg.err
 		m.state = errState
-		return m, nil
+		m.StatusBar.StopSpinner()
+		m.StatusBar.Content = "Error: " + msg.err.Error()
+		m.StatusBar.Level = statusbar.LevelError
+		return m, clearStatusCmd()
 	}
-
-	// Handle form logic
-	return updateRuneForm(msg, m)
+	model, cmd := updateRuneForm(msg, m)
+	return model, cmd
 }
 
 // updateInputs passes messages to the textinput components.
@@ -314,6 +376,8 @@ func updateShowingLoegs(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Esc):
 			m.state = ready
 			m.keys = mainListKeys()
+			m.StatusBar.Content = "Main Menu"
+			m.StatusBar.Level = statusbar.LevelInfo
 			m.cursor = 0
 			return m, nil
 		case key.Matches(msg, m.keys.Up):
@@ -326,11 +390,15 @@ func updateShowingLoegs(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 			}
 		case key.Matches(msg, m.keys.Delete):
 			if len(m.loegKeys) > 0 {
-				return m, m.removeLoegCmd
+				m.StatusBar.Content = "Deleting loeg..."
+				m.StatusBar.Level = statusbar.LevelWarning
+				return m, tea.Batch(m.StatusBar.StartSpinner(), m.removeLoegCmd)
 			}
 		case key.Matches(msg, m.keys.New):
 			m.state = creatingLoeg
 			m.keys = formKeys()
+			m.StatusBar.Content = "Creating a new loeg"
+			m.StatusBar.Level = statusbar.LevelInfo
 			m.inputs = make([]textinput.Model, 2) // KEY and VALUE
 			m.focusIndex = 0
 
@@ -354,18 +422,24 @@ func updateShowingLoegs(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		m.state = showingLoegs
 		m.keys = viewingLoegsKeys()
 		m.cursor = 0
+		m.StatusBar.StopSpinner()
+		m.StatusBar.Content = "Updated loegs list"
+		m.StatusBar.Level = statusbar.LevelSuccess
 		m.loegKeys = make([]string, 0, len(m.spellbook.Loegs))
 		for k := range m.spellbook.Loegs {
 			m.loegKeys = append(m.loegKeys, k)
 		}
 		sort.Strings(m.loegKeys)
-		return m, nil
+		return m, clearStatusCmd()
 	case loegRemovedMsg:
 		return m, m.getSpellbookContentCmd
 	case errMsg:
 		m.err = msg.err
 		m.state = errState
-		return m, nil
+		m.StatusBar.StopSpinner()
+		m.StatusBar.Content = "Error: " + msg.err.Error()
+		m.StatusBar.Level = statusbar.LevelError
+		return m, clearStatusCmd()
 	}
 	return m, nil
 }
@@ -378,9 +452,8 @@ func updateCreatingLoeg(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Esc):
 			m.state = showingLoegs
 			m.keys = viewingLoegsKeys()
-			return m, m.getSpellbookContentCmd // Refresh list
+			return m, m.getSpellbookContentCmd
 		case key.Matches(msg, m.keys.Up), key.Matches(msg, m.keys.Down):
-			// Handle tab focus logic
 			s := msg.String()
 			if s == "up" || s == "shift+tab" {
 				m.focusIndex--
@@ -405,23 +478,29 @@ func updateCreatingLoeg(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(cmds...)
 
 		case key.Matches(msg, m.keys.Enter):
-			// If the user presses enter on the last input field or the submit button,
-			// submit the form.
 			if m.focusIndex == len(m.inputs)-1 || m.focusIndex == len(m.inputs) {
-				return m, m.setLoegCmd
+				m.StatusBar.Content = "Setting loeg..."
+				m.StatusBar.Level = statusbar.LevelInfo
+				return m, tea.Batch(m.StatusBar.StartSpinner(), m.setLoegCmd)
 			}
 		}
-	case loegSetMsg:
+	case gotSpellbookMsg: // Success message
+		m.spellbook = &msg.spellbook
 		m.state = showingLoegs
 		m.keys = viewingLoegsKeys()
-		return m, m.getSpellbookContentCmd // Refresh list
+		m.StatusBar.StopSpinner()
+		m.StatusBar.Content = "Successfully set loeg"
+		m.StatusBar.Level = statusbar.LevelSuccess
+		return m, clearStatusCmd()
 	case errMsg:
 		m.err = msg.err
 		m.state = errState
-		return m, nil
+		m.StatusBar.StopSpinner()
+		m.StatusBar.Content = "Error: " + msg.err.Error()
+		m.StatusBar.Level = statusbar.LevelError
+		return m, clearStatusCmd()
 	}
 
-	// Handle text input updates
 	cmd := m.updateInputs(msg)
 	return m, cmd
 }

@@ -13,8 +13,8 @@ type StatusBar struct {
 	Content     string
 	theme       *styles.Theme
 	Level       LogLevel
-	spinner     spinner.Model
-	showSpinner bool
+	Spinner     spinner.Model
+	ShowSpinner bool
 	AppWith     int
 }
 
@@ -25,27 +25,26 @@ func New(content string, level LogLevel, with int, theme *styles.Theme) StatusBa
 	return StatusBar{
 		Content:     content,
 		Level:       level,
-		spinner:     s,
-		showSpinner: false,
+		Spinner:     s,
+		ShowSpinner: false,
 		theme:       theme,
 		AppWith:     with,
 	}
 }
 
 func (sb *StatusBar) StartSpinner() tea.Cmd {
-	sb.showSpinner = true
-	return sb.spinner.Tick
+	sb.ShowSpinner = true
+	return sb.Spinner.Tick
 }
 
-func (sb *StatusBar) StopSpinner() tea.Cmd {
-	sb.showSpinner = false
-	return nil
+func (sb *StatusBar) StopSpinner() {
+	sb.ShowSpinner = false
 }
 
 func (sb *StatusBar) Update(msg tea.Msg) (StatusBar, tea.Cmd) {
 	var cmd tea.Cmd
-	if sb.showSpinner {
-		sb.spinner, cmd = sb.spinner.Update(msg)
+	if sb.ShowSpinner {
+		sb.Spinner, cmd = sb.Spinner.Update(msg)
 	}
 	return *sb, cmd
 }
@@ -60,12 +59,12 @@ func (sb StatusBar) Render() string {
 		rightDashesCount int
 	)
 
-	if sb.showSpinner {
-		sb.spinner.Style = sb.spinner.Style.Foreground(sb.theme.Blur)
+	if sb.ShowSpinner {
+		sb.Spinner.Style = sb.Spinner.Style.Foreground(sb.theme.Blur)
 		spinnerView = sb.theme.AppStyles().
 			Base.Background(sb.theme.FgBase).
 			Padding(0, 2).
-			SetString(sb.spinner.View()).
+			SetString(sb.Spinner.View()).
 			String()
 	}
 

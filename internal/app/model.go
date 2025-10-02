@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/v2/help"
 	"github.com/charmbracelet/bubbles/v2/textinput"
@@ -42,8 +43,16 @@ type (
 	loegRemovedMsg  struct{}
 	runeUpdatedMsg  struct{}
 	runeDeletedMsg  struct{}
+	clearStatusMsg  struct{} // Message to clear the status bar after a delay
 	errMsg          struct{ err error }
 )
+
+// Command to clear the status bar after a delay
+func clearStatusCmd() tea.Cmd {
+	return tea.Tick(time.Second*2, func(t time.Time) tea.Msg {
+		return clearStatusMsg{}
+	})
+}
 
 // Model is the main application model.
 type Model struct {
@@ -81,6 +90,7 @@ func NewModel(cfg *config.Config) Model {
 		50,
 		theme,
 	)
+	statusbar.ShowSpinner = true
 
 	m := Model{
 		help:        help,
@@ -291,10 +301,11 @@ func (m *Model) deleteRuneCmd() tea.Msg {
 	return m.getSpellbookContentCmd() // Refresh cache
 }
 
-// Init is called once when the application starts.
+// Init is called once when the application starts. 
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		tea.EnterAltScreen,
-		m.getSpellbookContentCmd, // Tu comando original
+		m.getSpellbookContentCmd,
+		m.StatusBar.Spinner.Tick, // Start the spinner
 	)
 }
