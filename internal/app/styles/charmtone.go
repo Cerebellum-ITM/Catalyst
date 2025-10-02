@@ -9,7 +9,7 @@ func NewCharmtoneTheme() *Theme {
 	t := &Theme{
 		Name:   "charmtone",
 		IsDark: true,
-		Logo:   charmtone.Oceania,
+		Logo:   charmtone.Zinc,
 
 		FgBase:      charmtone.Ash,
 		FgMuted:     charmtone.Squid,
@@ -24,10 +24,10 @@ func NewCharmtoneTheme() *Theme {
 		Input:     charmtone.Sardine,
 		Output:    charmtone.Guppy,
 
-		Primary:   charmtone.Oceania,
+		Primary:   charmtone.Mustard,
 		Secondary: charmtone.Dolly,
 		Tertiary:  charmtone.Zest,
-		Accent:    charmtone.Anchovy,
+		Accent:    charmtone.Zinc,
 		Blur:      charmtone.Charcoal,
 
 		// Status
