@@ -76,6 +76,7 @@ func (m *Model) getDefaultStatusBarContent() string {
 		return "Ready"
 	}
 }
+
 // updateInitial handles updates during the initial spellbook check/creation.
 func updateInitial(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -339,7 +340,9 @@ func updateEditingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Esc):
 			m.state = showingRunes
 			m.keys = viewingRunesKeys()
-			return m, m.getSpellbookContentCmd
+			m.StatusBar.Content = "Viewing Runes"
+			m.StatusBar.Level = statusbar.LevelInfo
+			return m, nil
 		case key.Matches(msg, m.keys.Enter):
 			if m.focusIndex == len(m.inputs) {
 				m.StatusBar.Content = "Updating rune..."
