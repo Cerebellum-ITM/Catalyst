@@ -1,8 +1,9 @@
 package app
 
 import (
-	"catalyst/internal/app/components/statusbar"
 	"sort"
+
+	"catalyst/internal/app/components/statusbar"
 
 	"github.com/charmbracelet/bubbles/v2/key"
 	"github.com/charmbracelet/bubbles/v2/textinput"
@@ -63,7 +64,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) getDefaultStatusBarContent() string {
 	switch m.state {
 	case ready:
-		return "Main Menu"
+		return m.SpellbookString
 	case showingRunes:
 		return "Viewing Runes"
 	case creatingRune:
@@ -202,7 +203,7 @@ func updateShowingRunes(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Esc):
 			m.state = ready
 			m.keys = mainListKeys()
-			m.StatusBar.Content = "Main Menu"
+			m.StatusBar.Content = m.SpellbookString
 			m.StatusBar.Level = statusbar.LevelInfo
 			m.cursor = 0
 			return m, nil
@@ -292,7 +293,7 @@ func updateCreatingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Esc):
 			m.state = ready
 			m.keys = mainListKeys()
-			m.StatusBar.Content = "Main Menu"
+			m.StatusBar.Content = m.SpellbookString
 			m.StatusBar.Level = statusbar.LevelInfo
 			return m, nil
 		case key.Matches(msg, m.keys.Enter):
@@ -412,7 +413,7 @@ func updateShowingLoegs(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Esc):
 			m.state = ready
 			m.keys = mainListKeys()
-			m.StatusBar.Content = "Main Menu"
+			m.StatusBar.Content = m.SpellbookString
 			m.StatusBar.Level = statusbar.LevelInfo
 			m.cursor = 0
 			return m, nil
@@ -549,7 +550,7 @@ func updateShowingHistory(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Esc):
 			m.state = ready
 			m.keys = mainListKeys()
-			m.StatusBar.Content = "Main Menu"
+			m.StatusBar.Content = m.SpellbookString
 			m.StatusBar.Level = statusbar.LevelInfo
 			m.cursor = 0
 			return m, nil

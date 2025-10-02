@@ -1,8 +1,9 @@
 package statusbar
 
 import (
-	"catalyst/internal/app/styles"
 	"strings"
+
+	"catalyst/internal/app/styles"
 
 	"github.com/charmbracelet/bubbles/v2/spinner"
 	tea "github.com/charmbracelet/bubbletea/v2"
@@ -19,7 +20,13 @@ type StatusBar struct {
 	Version     string
 }
 
-func New(content string, level LogLevel, with int, theme *styles.Theme, version string) StatusBar {
+func New(
+	content string,
+	level LogLevel,
+	with int,
+	theme *styles.Theme,
+	version string,
+) StatusBar {
 	s := spinner.New()
 	s.Spinner = spinner.Points
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.BrightMagenta)

@@ -1,17 +1,19 @@
 package app
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
 	"catalyst/internal/app/components/statusbar"
 	"catalyst/internal/app/styles"
 	"catalyst/internal/config"
 	"catalyst/internal/db"
 	"catalyst/internal/local"
 	"catalyst/internal/ssh"
-	"encoding/json"
-	"fmt"
-	"os"
-	"strings"
-	"time"
+	"catalyst/internal/utils"
 
 	"github.com/charmbracelet/bubbles/v2/help"
 	"github.com/charmbracelet/bubbles/v2/textinput"
@@ -60,28 +62,29 @@ func clearStatusCmd() tea.Cmd {
 
 // Model is the main application model.
 type Model struct {
-	keys        KeyMap
-	help        help.Model
-	sshClient   *ssh.Client
-	localRunner *local.Runner
-	db          *db.Database
-	state       state
-	previousState state
-	pwd         string // Current working directory (spellbook path)
-	menuItems   []string
-	cursor      int
-	spellbook   *Spellbook        // Our in-memory cache
-	loegKeys    []string          // For ordered display and selection
-	history     []db.HistoryEntry // For the history view
-	inputs      []textinput.Model // For the "Create Rune" form
-	focusIndex  int
-	output      string // To store output from executed runes
-	err         error
-	width       int
-	height      int
-	StatusBar   statusbar.StatusBar
-	Theme       *styles.Theme
-	Version     string
+	keys            KeyMap
+	help            help.Model
+	sshClient       *ssh.Client
+	localRunner     *local.Runner
+	db              *db.Database
+	state           state
+	previousState   state
+	pwd             string // Current working directory (spellbook path)
+	menuItems       []string
+	cursor          int
+	spellbook       *Spellbook        // Our in-memory cache
+	loegKeys        []string          // For ordered display and selection
+	history         []db.HistoryEntry // For the history view
+	inputs          []textinput.Model // For the "Create Rune" form
+	focusIndex      int
+	output          string // To store output from executed runes
+	err             error
+	width           int
+	height          int
+	StatusBar       statusbar.StatusBar
+	Theme           *styles.Theme
+	Version         string
+	SpellbookString string
 }
 
 // NewModel creates a new application model.
@@ -102,19 +105,20 @@ func NewModel(cfg *config.Config, db *db.Database, version string) Model {
 	statusbar.ShowSpinner = true
 
 	m := Model{
-		help:        help,
-		keys:        initialsKeys,
-		sshClient:   ssh.NewClient(cfg.RuneCraftHost),
-		localRunner: local.NewRunner(),
-		db:          db,
-		state:       checkingSpellbook,
-		pwd:         pwd,
-		menuItems:   []string{"Get Runes", "Create Rune", "Manage Loegs", "View History"},
-		inputs:      make([]textinput.Model, 3), // name, desc, cmds
-		focusIndex:  0,
-		Theme:       theme,
-		StatusBar:   statusbar,
-		Version:     version,
+		help:            help,
+		keys:            initialsKeys,
+		sshClient:       ssh.NewClient(cfg.RuneCraftHost),
+		localRunner:     local.NewRunner(),
+		db:              db,
+		state:           checkingSpellbook,
+		pwd:             pwd,
+		menuItems:       []string{"Get Runes", "Create Rune", "Manage Loegs", "View History"},
+		inputs:          make([]textinput.Model, 3), // name, desc, cmds
+		focusIndex:      0,
+		Theme:           theme,
+		StatusBar:       statusbar,
+		Version:         version,
+		SpellbookString: fmt.Sprintf("Main Menu - %s", utils.TruncatePath(pwd, 2)),
 	}
 
 	// Initialize text inputs for the create rune form
