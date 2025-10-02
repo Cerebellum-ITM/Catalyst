@@ -25,7 +25,7 @@ func (m Model) View() string {
 	case creatingSpellbook:
 		s.WriteString("Creating Spellbook...")
 	case ready:
-		s.WriteString(fmt.Sprintf("🔮 Spellbook ready at: %s\n\n", m.pwd))
+		s.WriteString(fmt.Sprintf("Spellbook ready at: %s\n\n", m.pwd))
 		s.WriteString("What would you like to do?\n\n")
 
 		for i, item := range m.menuItems {
@@ -38,7 +38,7 @@ func (m Model) View() string {
 
 
 	case showingRunes:
-		s.WriteString(fmt.Sprintf("📜 Runes in %s:\n\n", m.pwd))
+		s.WriteString(fmt.Sprintf("Runes in %s:\n\n", m.pwd))
 		if len(m.spellbook.Runes) == 0 {
 			s.WriteString("No runes found.\n")
 		} else {
@@ -53,7 +53,7 @@ func (m Model) View() string {
 
 
 	case creatingRune:
-		s.WriteString("✨ Create a New Rune\n\n")
+		s.WriteString("Create a New Rune\n\n")
 		for i := range m.inputs {
 			s.WriteString(m.inputs[i].View() + "\n")
 		}
@@ -68,7 +68,7 @@ func (m Model) View() string {
 	case editingRune:
 		s.WriteString(
 			fmt.Sprintf(
-				"✍️ Editing Rune: %s\n\n",
+				"Editing Rune: %s\n\n",
 				highlight.Render(m.spellbook.Runes[m.cursor].Name),
 			),
 		)
@@ -85,7 +85,7 @@ func (m Model) View() string {
 
 	case executingRune:
 		selectedRune := m.spellbook.Runes[m.cursor]
-		s.WriteString(fmt.Sprintf("🏃 Executing Rune: %s\n\n", highlight.Render(selectedRune.Name)))
+		s.WriteString(fmt.Sprintf("Executing Rune: %s\n\n", highlight.Render(selectedRune.Name)))
 		s.WriteString(m.output)
 		// Add a blinking cursor or spinner here in a real app to show activity.
 		if m.output == "" {
@@ -94,7 +94,7 @@ func (m Model) View() string {
 
 
 	case showingLoegs:
-		s.WriteString("🌿 Loegs (Environment Variables):\n\n")
+		s.WriteString("Loegs (Environment Variables):\n\n")
 		if len(m.loegKeys) == 0 {
 			s.WriteString("No loegs found.\n")
 		} else {
@@ -109,7 +109,7 @@ func (m Model) View() string {
 
 
 	case creatingLoeg:
-		s.WriteString("🌿 Create a New Loeg\n\n")
+		s.WriteString("Create a New Loeg\n\n")
 		for i := range m.inputs {
 			s.WriteString(m.inputs[i].View() + "\n")
 		}
