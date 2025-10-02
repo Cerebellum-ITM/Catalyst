@@ -24,6 +24,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, m.keys.Help):
 			m.help.ShowAll = !m.help.ShowAll
+		case key.Matches(msg, m.keys.GlobalQuit):
+			return m, tea.Quit
 		}
 	case clearStatusMsg:
 		m.StatusBar.Content = m.getDefaultStatusBarContent()
