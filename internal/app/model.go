@@ -43,6 +43,7 @@ type (
 	loegRemovedMsg  struct{}
 	runeUpdatedMsg  struct{}
 	runeDeletedMsg  struct{}
+	noChangesMsg    struct{} // Message to indicate no changes were made
 	clearStatusMsg  struct{} // Message to clear the status bar after a delay
 	errMsg          struct{ err error }
 )
@@ -275,7 +276,7 @@ func (m *Model) updateRuneCmd() tea.Msg {
 
 	// If no changes were made, don't run the command
 	if len(parts) <= 3 {
-		return runeUpdatedMsg{} // No-op, just go back
+		return noChangesMsg{}
 	}
 
 	cmd := strings.Join(parts, " ")

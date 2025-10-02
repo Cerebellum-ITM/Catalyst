@@ -347,6 +347,13 @@ func updateEditingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		m.StatusBar.Content = "Successfully updated rune"
 		m.StatusBar.Level = statusbar.LevelSuccess
 		return m, clearStatusCmd()
+	case noChangesMsg:
+		m.state = showingRunes
+		m.keys = viewingRunesKeys()
+		m.StatusBar.StopSpinner()
+		m.StatusBar.Content = "No changes detected"
+		m.StatusBar.Level = statusbar.LevelWarning
+		return m, clearStatusCmd()
 	case errMsg:
 		m.err = msg.err
 		m.state = errState
