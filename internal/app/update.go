@@ -51,6 +51,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		subModel, subCmd = updateCreatingLoeg(msg, m)
 	case editingRune:
 		subModel, subCmd = updateEditingRune(msg, m)
+	case showingHistory:
+		subModel, subCmd = updateShowingHistory(msg, m)
 	default:
 		subModel, subCmd = updateInitial(msg, m)
 	}
@@ -171,6 +173,13 @@ func updateReady(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 				}
 				sort.Strings(m.loegKeys)
 				return m, nil
+			case 3: // View History
+				m.state = showingHistory
+				// m.keys = viewingHistoryKeys() // TODO: Define these keys
+				m.StatusBar.Content = "Viewing History"
+				m.StatusBar.Level = statusbar.LevelInfo
+				m.cursor = 0
+				return m, m.getHistoryCmd
 			}
 		}
 	case gotSpellbookMsg: // This is the new centralized update path
@@ -329,7 +338,7 @@ func updateExecutingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		m.StatusBar.StopSpinner()
 		m.StatusBar.Content = "Execution finished"
 		m.StatusBar.Level = statusbar.LevelSuccess
-		return m, clearStatusCmd()
+		return m, tea.Batch(m.saveHistoryCmd, clearStatusCmd())
 	}
 	return m, nil
 }
@@ -523,4 +532,40 @@ func updateCreatingLoeg(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 
 	cmd := m.updateInputs(msg)
 	return m, cmd
+}
+
+// updateShowingHistory handles updates when viewing the execution history.
+func updateShowingHistory(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, m.keys.Esc):
+			m.state = ready
+			m.keys = mainListKeys()
+			m.StatusBar.Content = "Main Menu"
+			m.StatusBar.Level = statusbar.LevelInfo
+			m.cursor = 0
+			return m, nil
+		case key.Matches(msg, m.keys.Up):
+			if m.cursor > 0 {
+				m.cursor--
+			}
+		case key.Matches(msg, m.keys.Down):
+			if m.cursor < len(m.history)-1 {
+				m.cursor++
+			}
+		}
+	case gotHistoryMsg:
+		m.history = msg.history
+		m.StatusBar.Content = "Viewing history"
+		m.StatusBar.Level = statusbar.LevelSuccess
+		return m, clearStatusCmd()
+	case errMsg:
+		m.err = msg.err
+		m.state = errState
+		m.StatusBar.Content = "Error: " + msg.err.Error()
+		m.StatusBar.Level = statusbar.LevelError
+		return m, clearStatusCmd()
+	}
+	return m, nil
 }

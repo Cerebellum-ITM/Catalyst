@@ -4,6 +4,7 @@ import (
 	"catalyst/internal/app/components/statusbar"
 	"catalyst/internal/app/styles"
 	"catalyst/internal/config"
+	"catalyst/internal/db"
 	"catalyst/internal/local"
 	"catalyst/internal/ssh"
 	"encoding/json"
@@ -30,6 +31,7 @@ const (
 	showingLoegs
 	creatingLoeg
 	editingRune
+	showingHistory
 	errState
 )
 
@@ -43,6 +45,7 @@ type (
 	loegRemovedMsg  struct{}
 	runeUpdatedMsg  struct{}
 	runeDeletedMsg  struct{}
+	gotHistoryMsg   struct{ history []db.HistoryEntry }
 	noChangesMsg    struct{} // Message to indicate no changes were made
 	clearStatusMsg  struct{} // Message to clear the status bar after a delay
 	errMsg          struct{ err error }
@@ -61,13 +64,15 @@ type Model struct {
 	help        help.Model
 	sshClient   *ssh.Client
 	localRunner *local.Runner
+	db          *db.Database
 	state       state
 	pwd         string // Current working directory (spellbook path)
 	menuItems   []string
 	cursor      int
-	spellbook   *Spellbook        // Our in-memory cache
-	loegKeys    []string          // For ordered display and selection
-	inputs      []textinput.Model // For the "Create Rune" form
+	spellbook   *Spellbook          // Our in-memory cache
+	loegKeys    []string            // For ordered display and selection
+	history     []db.HistoryEntry   // For the history view
+	inputs      []textinput.Model   // For the "Create Rune" form
 	focusIndex  int
 	output      string // To store output from executed runes
 	err         error
@@ -78,7 +83,7 @@ type Model struct {
 }
 
 // NewModel creates a new application model.
-func NewModel(cfg *config.Config) Model {
+func NewModel(cfg *config.Config, db *db.Database) Model {
 	pwd, _ := os.Getwd() // Get PWD once at the start
 
 	theme := styles.NewCharmtoneTheme()
@@ -98,9 +103,10 @@ func NewModel(cfg *config.Config) Model {
 		keys:        initialsKeys,
 		sshClient:   ssh.NewClient(cfg.RuneCraftHost),
 		localRunner: local.NewRunner(),
+		db:          db,
 		state:       checkingSpellbook,
 		pwd:         pwd,
-		menuItems:   []string{"Get Runes", "Create Rune", "Manage Loegs"},
+		menuItems:   []string{"Get Runes", "Create Rune", "Manage Loegs", "View History"},
 		inputs:      make([]textinput.Model, 3), // name, desc, cmds
 		focusIndex:  0,
 		Theme:       theme,
@@ -203,6 +209,28 @@ func (m *Model) executeRuneCmd() tea.Msg {
 		return runeExecutedMsg{output: output}
 	}
 	return runeExecutedMsg{output: output}
+}
+
+// saveHistoryCmd saves the execution of a rune to the database.
+func (m *Model) saveHistoryCmd() tea.Msg {
+	if m.cursor < 0 || m.cursor >= len(m.spellbook.Runes) {
+		return errMsg{fmt.Errorf("invalid rune selection for history")}
+	}
+	selectedRune := m.spellbook.Runes[m.cursor]
+	err := m.db.AddHistoryEntry(selectedRune.Name, m.spellbook.Name)
+	if err != nil {
+		return errMsg{err}
+	}
+	return nil // No message needed on success
+}
+
+// getHistoryCmd retrieves the execution history from the database.
+func (m *Model) getHistoryCmd() tea.Msg {
+	history, err := m.db.GetHistory()
+	if err != nil {
+		return errMsg{err}
+	}
+	return gotHistoryMsg{history: history}
 }
 
 // No need for getLoegsCmd anymore, it's part of getSpellbookContentCmd

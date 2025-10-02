@@ -123,6 +123,25 @@ func (m Model) View() string {
 
 	case errState:
 		s.WriteString(fmt.Sprintf("An error occurred: %v\n\n", m.err))
+	
+	case showingHistory:
+		s.WriteString("Execution History:\n\n")
+		if len(m.history) == 0 {
+			s.WriteString("No history found.\n")
+		} else {
+			for i, entry := range m.history {
+				cursor := " "
+				if m.cursor == i {
+					cursor = ">"
+				}
+				s.WriteString(fmt.Sprintf("%s %s on %s at %s\n",
+					highlight.Render(cursor),
+					entry.RuneID,
+					entry.SpellbookID,
+					entry.ExecutedAt.Format("2006-01-02 15:04:05")),
+				)
+			}
+		}
 
 	}
 

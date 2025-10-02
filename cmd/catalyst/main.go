@@ -3,6 +3,7 @@ package main
 import (
 	"catalyst/internal/app"
 	"catalyst/internal/config"
+	"catalyst/internal/db"
 	"fmt"
 	"os"
 
@@ -16,7 +17,13 @@ func main() {
 		log.Fatalf("could not load config: %v", err)
 	}
 
-	m := app.NewModel(cfg)
+	db, err := db.InitDB()
+	if err != nil {
+		log.Fatalf("could not initialize database: %v", err)
+	}
+	defer db.Close()
+
+	m := app.NewModel(cfg, db)
 	p := tea.NewProgram(m)
 
 	if _, err := p.Run(); err != nil {
