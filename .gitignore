@@ -13,3 +13,4 @@ Makefile
 CRUSH.md
 /bin
 create_release.sh
+.commitcraft.toml
