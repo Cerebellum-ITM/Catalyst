@@ -15,9 +15,31 @@ var (
 	HorizontalSpace = lipgloss.NewStyle().Width(10).Render("")
 )
 
+func (m Model) showProntMessage(availableHeightForMainContent int) string {
+	var prontMessage string
+	asciiLogo := ascii.PrintLogo()
+	specsText := ascii.PrintSpecs()
+
+	finalPrompt := lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		HorizontalSpace,
+		asciiLogo,
+		HorizontalSpace,
+		specsText,
+	)
+	prontMessage = lipgloss.Place(
+		m.width,
+		availableHeightForMainContent,
+		lipgloss.Left,
+		lipgloss.Center,
+		finalPrompt,
+	)
+
+	return prontMessage
+}
+
 func (m Model) View() string {
 	var s strings.Builder
-	var stateContent string
 
 	statusBarContent := m.StatusBar.Render()
 	helpView := lipgloss.NewStyle().Padding(0, 2).SetString(m.help.View(m.keys)).String()
@@ -26,43 +48,17 @@ func (m Model) View() string {
 	VerticalSpaceH := 2 * lipgloss.Height(VerticalSpace)
 	helpViewH := lipgloss.Height(helpView)
 	availableHeightForMainContent := contentHeight - statusBarH - VerticalSpaceH - helpViewH
-	asciiLogo := ascii.PrintLogo()
-	specsText := ascii.PrintSpecs()
+	printMessage := m.showProntMessage(availableHeightForMainContent)
 
 	switch m.state {
 	case checkingSpellbook:
 		m.StatusBar.Content = "Checking for Spellbook..."
-		finalPrompt := lipgloss.JoinHorizontal(
-			lipgloss.Left,
-			HorizontalSpace,
-			asciiLogo,
-			HorizontalSpace,
-			specsText,
-		)
-		stateContent = lipgloss.Place(
-			m.width,
-			availableHeightForMainContent,
-			lipgloss.Left,
-			lipgloss.Center,
-			finalPrompt,
-		)
-		s.WriteString(stateContent)
+		s.WriteString(printMessage)
 	case creatingSpellbook:
 		m.StatusBar.Content = "Creating Spellbook..."
-		finalPrompt := lipgloss.JoinHorizontal(
-			lipgloss.Left,
-			HorizontalSpace,
-			asciiLogo,
-			HorizontalSpace,
-			specsText,
-		)
-		stateContent = lipgloss.Place(
-			m.width,
-			availableHeightForMainContent,
-			lipgloss.Left,
-			lipgloss.Center,
-			finalPrompt,
-		)
+		s.WriteString(printMessage)
+	case spellbookLoaded:
+		s.WriteString(printMessage)
 	case ready:
 		m.menuItems.SetWidth(m.width)
 		m.menuItems.SetHeight(availableHeightForMainContent)

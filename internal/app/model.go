@@ -28,6 +28,7 @@ type state int
 const (
 	checkingSpellbook state = iota
 	creatingSpellbook
+	spellbookLoaded
 	ready
 	showingRunes
 	creatingRune
@@ -58,6 +59,12 @@ type (
 // Command to clear the status bar after a delay
 func clearStatusCmd() tea.Cmd {
 	return tea.Tick(time.Second*2, func(t time.Time) tea.Msg {
+		return clearStatusMsg{}
+	})
+}
+
+func noDelayClearStatusCmd() tea.Cmd {
+	return tea.Tick(time.Second*0, func(t time.Time) tea.Msg {
 		return clearStatusMsg{}
 	})
 }
@@ -99,7 +106,7 @@ func NewModel(cfg *config.Config, db *db.Database, version string) Model {
 	initialsKeys := mainListKeys()
 	statusbar := statusbar.New(
 		"initializing Catalyst",
-		statusbar.LevelInfo,
+		statusbar.LevelWarning,
 		50,
 		theme,
 		version,

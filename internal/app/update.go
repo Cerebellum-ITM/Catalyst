@@ -2,6 +2,7 @@ package app
 
 import (
 	"sort"
+	"time"
 
 	"catalyst/internal/app/components/core"
 	"catalyst/internal/app/components/statusbar"
@@ -24,6 +25,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.StatusBar.AppWith = m.width
 	case tea.KeyMsg:
+		if m.state == spellbookLoaded {
+			m.state = ready
+			return m, noDelayClearStatusCmd()
+		}
 		switch {
 		case key.Matches(msg, m.keys.Help):
 			m.help.ShowAll = !m.help.ShowAll
@@ -34,6 +39,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.StatusBar.Content = m.getDefaultStatusBarContent()
 		m.StatusBar.Level = statusbar.LevelInfo
 		return m, nil
+	case continueToReadyMsg:
+		if m.state == spellbookLoaded {
+			m.state = ready
+		}
+		return m, noDelayClearStatusCmd()
 	}
 
 	var subCmd tea.Cmd
@@ -84,6 +94,14 @@ func (m *Model) getDefaultStatusBarContent() string {
 	}
 }
 
+type continueToReadyMsg struct{}
+
+func continueToReadyCmd() tea.Cmd {
+	return tea.Tick(5*time.Second, func(t time.Time) tea.Msg {
+		return continueToReadyMsg{}
+	})
+}
+
 // updateInitial handles updates during the initial spellbook check/creation.
 func updateInitial(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -94,14 +112,14 @@ func updateInitial(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		}
 	case gotSpellbookMsg:
 		m.spellbook = &msg.spellbook
-		m.state = ready
-		m.StatusBar.StopSpinner()
-		m.StatusBar.Content = "Spellbook found and loaded"
+		m.state = spellbookLoaded
 		m.StatusBar.Level = statusbar.LevelSuccess
+		m.StatusBar.Content = "Ready to start press any key ...."
+		m.StatusBar.StopSpinner()
 		m.menuItems.ResetFilter()
 		m.menuItems.SetFilterText("")
 		m.menuItems.SetFilterState(list.FilterState(list.Filtering))
-		return m, clearStatusCmd()
+		return m, continueToReadyCmd()
 	case errMsg:
 		if msg.err == nil { // This means the spellbook doesn't exist, time to create it
 			m.state = creatingSpellbook
@@ -450,7 +468,7 @@ func updateShowingLoegs(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 			m.keys = formKeys()
 			m.StatusBar.Content = "Creating a new loeg"
 			m.StatusBar.Level = statusbar.LevelInfo
-			m.inputs = make([]textinput.Model, 2) // KEY and VALUE
+			m.inputs = make([]textinput.Model, 2)
 			m.focusIndex = 0
 
 			var t textinput.Model
