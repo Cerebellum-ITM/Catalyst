@@ -4,16 +4,20 @@ import (
 	"fmt"
 	"strings"
 
+	"catalyst/internal/ascii"
+
 	"github.com/charmbracelet/lipgloss/v2"
 )
 
 var (
-	highlight     = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	VerticalSpace = lipgloss.NewStyle().Height(1).Render("")
+	highlight       = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	VerticalSpace   = lipgloss.NewStyle().Height(1).Render("")
+	HorizontalSpace = lipgloss.NewStyle().Width(10).Render("")
 )
 
 func (m Model) View() string {
 	var s strings.Builder
+	var stateContent string
 
 	statusBarContent := m.StatusBar.Render()
 	helpView := lipgloss.NewStyle().Padding(0, 2).SetString(m.help.View(m.keys)).String()
@@ -22,12 +26,43 @@ func (m Model) View() string {
 	VerticalSpaceH := 2 * lipgloss.Height(VerticalSpace)
 	helpViewH := lipgloss.Height(helpView)
 	availableHeightForMainContent := contentHeight - statusBarH - VerticalSpaceH - helpViewH
+	asciiLogo := ascii.PrintLogo()
+	specsText := ascii.PrintSpecs()
 
 	switch m.state {
 	case checkingSpellbook:
 		m.StatusBar.Content = "Checking for Spellbook..."
+		finalPrompt := lipgloss.JoinHorizontal(
+			lipgloss.Left,
+			HorizontalSpace,
+			asciiLogo,
+			HorizontalSpace,
+			specsText,
+		)
+		stateContent = lipgloss.Place(
+			m.width,
+			availableHeightForMainContent,
+			lipgloss.Left,
+			lipgloss.Center,
+			finalPrompt,
+		)
+		s.WriteString(stateContent)
 	case creatingSpellbook:
 		m.StatusBar.Content = "Creating Spellbook..."
+		finalPrompt := lipgloss.JoinHorizontal(
+			lipgloss.Left,
+			HorizontalSpace,
+			asciiLogo,
+			HorizontalSpace,
+			specsText,
+		)
+		stateContent = lipgloss.Place(
+			m.width,
+			availableHeightForMainContent,
+			lipgloss.Left,
+			lipgloss.Center,
+			finalPrompt,
+		)
 	case ready:
 		m.menuItems.SetWidth(m.width)
 		m.menuItems.SetHeight(availableHeightForMainContent)
