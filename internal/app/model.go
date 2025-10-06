@@ -21,6 +21,7 @@ import (
 	"github.com/charmbracelet/bubbles/v2/textinput"
 	"github.com/charmbracelet/bubbles/v2/viewport"
 	tea "github.com/charmbracelet/bubbletea/v2"
+	"github.com/charmbracelet/lipgloss/v2"
 )
 
 // Define application states.
@@ -39,6 +40,13 @@ const (
 	editingRune
 	showingHistory
 	errState
+)
+
+type focusableElement int
+
+const (
+	listElement focusableElement = iota // 0
+	viewportElement
 )
 
 // Define messages for async operations.
@@ -72,6 +80,7 @@ func noDelayClearStatusCmd() tea.Cmd {
 
 // Model is the main application model.
 type Model struct {
+	availableHeight   int
 	keys              KeyMap
 	help              help.Model
 	sshClient         *ssh.Client
@@ -79,6 +88,7 @@ type Model struct {
 	db                *db.Database
 	state             state
 	previousState     state
+	focusedElement    focusableElement
 	pwd               string // Current working directory (spellbook path)
 	menuItems         list.Model
 	cursor            int
@@ -153,6 +163,26 @@ func NewModel(cfg *config.Config, db *db.Database, version string) Model {
 	}
 
 	return m
+}
+
+func (m *Model) recalculateSizes() {
+	if m.width == 0 || m.height == 0 {
+		return
+	}
+	// Calculate available height for main content
+	statusBarContent := m.StatusBar.Render()
+	helpView := lipgloss.NewStyle().Padding(0, 2).SetString(m.help.View(m.keys)).String()
+	statusBarH := lipgloss.Height(statusBarContent)
+	helpViewH := lipgloss.Height(helpView)
+	// 2 for vertical spaces between status bar, content, and help
+	availableHeightForMainContent := m.height - statusBarH - helpViewH - 2
+
+	// Set sizes for components
+	m.viewportSpellBook.SetWidth(m.width * 3 / 4)
+	m.viewportSpellBook.SetHeight(availableHeightForMainContent)
+	m.menuItems.SetWidth(m.width / 4)
+	m.menuItems.SetHeight(availableHeightForMainContent)
+	m.availableHeight = availableHeightForMainContent
 }
 
 // getSpellbookContentCmd fetches the entire spellbook content.

@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	// "os"
 	"strings"
 
 	"catalyst/internal/ascii"
@@ -40,18 +41,13 @@ func (m Model) showProntMessage(availableHeightForMainContent int) string {
 	return prontMessage
 }
 
-func (m Model) View() string {
+func (m *Model) View() string {
 	var s strings.Builder
 	var stateView string
 
 	statusBarContent := m.StatusBar.Render()
 	helpView := lipgloss.NewStyle().Padding(0, 2).SetString(m.help.View(m.keys)).String()
-	contentHeight := m.height
-	statusBarH := lipgloss.Height(statusBarContent)
-	VerticalSpaceH := 2 * lipgloss.Height(VerticalSpace)
-	helpViewH := lipgloss.Height(helpView)
-	availableHeightForMainContent := contentHeight - statusBarH - VerticalSpaceH - helpViewH
-	printMessage := m.showProntMessage(availableHeightForMainContent)
+	printMessage := m.showProntMessage(m.availableHeight)
 
 	switch m.state {
 	case checkingSpellbook:
@@ -63,18 +59,17 @@ func (m Model) View() string {
 	case spellbookLoaded:
 		s.WriteString(printMessage)
 	case ready:
-		m.viewportSpellBook.SetWidth(m.width * 3 / 4)
-		m.viewportSpellBook.SetHeight(availableHeightForMainContent)
-		glamourContent := "Test text"
+
 		glamourStyle := styles.DarkStyleConfig
-		rendererGlamour, _ := glamour.NewTermRenderer(
+		renderer, _ := glamour.NewTermRenderer(
 			glamour.WithStyles(glamourStyle),
 			glamour.WithWordWrap(m.viewportSpellBook.Width()),
 		)
-		glamourContentStr, _ := rendererGlamour.Render(glamourContent)
+		glamourContent, _ := renderSpellbook(m.spellbook)
+		glamourContentStr, _ := renderer.Render(glamourContent)
+
 		m.viewportSpellBook.SetContent(glamourContentStr)
-		m.menuItems.SetWidth(m.width / 4)
-		m.menuItems.SetHeight(availableHeightForMainContent)
+
 		stateView = lipgloss.JoinHorizontal(
 			lipgloss.Left,
 			m.menuItems.View(),
@@ -196,4 +191,51 @@ func (m Model) View() string {
 	canvas := lipgloss.NewCanvas(mainLayer)
 
 	return canvas.Render()
+}
+
+func renderSpellbook(sb *Spellbook) (string, error) {
+	if sb == nil {
+		return "", fmt.Errorf("spellbook is nil")
+	}
+
+	var md strings.Builder
+
+	// Title
+	md.WriteString(fmt.Sprintf("# %s\n\n", sb.Name))
+
+	// Runes Section
+	md.WriteString("## Runes\n\n")
+	if len(sb.Runes) == 0 {
+		md.WriteString("No runes found.\n\n")
+	} else {
+		for _, r := range sb.Runes {
+			md.WriteString(fmt.Sprintf("### %s\n", r.Name))
+			md.WriteString(fmt.Sprintf("> %s\n\n", r.Description))
+			md.WriteString("```sh\n")
+			for _, cmd := range r.Commands {
+				md.WriteString(fmt.Sprintf("%s\n", cmd))
+			}
+			md.WriteString("```\n\n")
+		}
+	}
+
+	// Loegs Section
+	md.WriteString("## Loegs (Environment Variables)\n\n")
+	if len(sb.Loegs) == 0 {
+		md.WriteString("No loegs found.\n\n")
+	} else {
+		md.WriteString("| Key | Value |\n")
+		md.WriteString("|-----|-------|\n")
+		for k, v := range sb.Loegs {
+			md.WriteString(fmt.Sprintf("| %s | %s |\n", k, v))
+		}
+	}
+
+	// Write to file for debugging
+	// err := os.WriteFile("spellbook_output.md", []byte(md.String()), 0o644)
+	// if err != nil {
+	// return "", fmt.Errorf("failed to write spellbook to file: %w", err)
+	// }
+
+	return md.String(), nil
 }

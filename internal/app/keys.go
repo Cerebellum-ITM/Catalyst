@@ -6,15 +6,18 @@ import "github.com/charmbracelet/bubbles/v2/key"
 // It implements the help.KeyMap interface.
 type KeyMap struct {
 	// General
-	Enter      key.Binding
-	Quit       key.Binding
-	GlobalQuit key.Binding
-	Help       key.Binding
-	Esc        key.Binding
+	SwitchFocus key.Binding
+	Enter       key.Binding
+	Quit        key.Binding
+	GlobalQuit  key.Binding
+	Help        key.Binding
+	Esc         key.Binding
 
 	// Navigation
-	Up   key.Binding
-	Down key.Binding
+	Up     key.Binding
+	Down   key.Binding
+	PgUp   key.Binding
+	PgDown key.Binding
 
 	// Rune specific
 	Edit   key.Binding
@@ -22,14 +25,24 @@ type KeyMap struct {
 	New    key.Binding
 }
 
+func viewPortKeys() KeyMap {
+	return KeyMap{
+		PgUp:        key.NewBinding(key.WithKeys("pgup"), key.WithHelp("pgup", "page up")),
+		PgDown:      key.NewBinding(key.WithKeys("pgdown"), key.WithHelp("pgdown", "page down")),
+		SwitchFocus: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "Toggle focus")),
+		GlobalQuit:  key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "quit")),
+	}
+}
+
 func mainListKeys() KeyMap {
 	return KeyMap{
-		Up:         key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
-		Down:       key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
-		Enter:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
-		Quit:       key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
-		GlobalQuit: key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "quit")),
-		Help:       key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+		Up:          key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
+		Down:        key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
+		Enter:       key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
+		Quit:        key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
+		SwitchFocus: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "Toggle focus")),
+		GlobalQuit:  key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "quit")),
+		Help:        key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 	}
 }
 
@@ -78,6 +91,12 @@ func executingRuneKeys() KeyMap {
 
 func (k KeyMap) ShortHelp() []key.Binding {
 	b := []key.Binding{}
+	if k.PgUp.Enabled() {
+		b = append(b, k.PgUp)
+	}
+	if k.PgDown.Enabled() {
+		b = append(b, k.PgDown)
+	}
 	if k.Up.Enabled() {
 		b = append(b, k.Up)
 	}
@@ -86,6 +105,9 @@ func (k KeyMap) ShortHelp() []key.Binding {
 	}
 	if k.Enter.Enabled() {
 		b = append(b, k.Enter)
+	}
+	if k.SwitchFocus.Enabled() {
+		b = append(b, k.SwitchFocus)
 	}
 	if k.New.Enabled() {
 		b = append(b, k.New)
@@ -110,6 +132,12 @@ func (k KeyMap) ShortHelp() []key.Binding {
 
 func (k KeyMap) FullHelp() [][]key.Binding {
 	b := []key.Binding{}
+	if k.PgUp.Enabled() {
+		b = append(b, k.PgUp)
+	}
+	if k.PgDown.Enabled() {
+		b = append(b, k.PgDown)
+	}
 	if k.Up.Enabled() {
 		b = append(b, k.Up)
 	}
@@ -118,6 +146,9 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 	}
 	if k.Enter.Enabled() {
 		b = append(b, k.Enter)
+	}
+	if k.SwitchFocus.Enabled() {
+		b = append(b, k.SwitchFocus)
 	}
 	if k.New.Enabled() {
 		b = append(b, k.New)

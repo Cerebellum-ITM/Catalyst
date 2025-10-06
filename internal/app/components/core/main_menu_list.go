@@ -58,5 +58,6 @@ func NewMainMenu(theme styles.Theme) list.Model {
 	mainList.KeyMap.AcceptWhileFiltering = key.NewBinding(
 		key.WithKeys("enter", "/", "up", "down"),
 	)
+	mainList.KeyMap.CancelWhileFiltering = key.NewBinding(key.WithKeys("/"))
 	return mainList
 }

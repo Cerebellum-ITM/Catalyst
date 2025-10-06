@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/v2/list"
 	"github.com/charmbracelet/bubbles/v2/textinput"
 	tea "github.com/charmbracelet/bubbletea/v2"
+
 )
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -24,6 +25,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.StatusBar.AppWith = m.width
+		m.recalculateSizes()
+		return m, nil
 	case tea.KeyMsg:
 		if m.state == spellbookLoaded {
 			m.state = ready
@@ -46,7 +49,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, noDelayClearStatusCmd()
 	}
 
-
 	switch m.state {
 	case ready:
 		return updateReady(msg, m)
@@ -66,6 +68,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return updateShowingHistory(msg, m)
 	default:
 		return updateInitial(msg, m)
+	}
+}
+
+func (m *Model) changeFocusedElement() {
+	if m.focusedElement == listElement {
+		m.focusedElement = viewportElement
+	} else {
+		m.focusedElement = listElement
+	}
+
+	switch m.state {
+	case ready:
+		switch m.focusedElement {
+		case listElement:
+			m.keys = mainListKeys()
+		case viewportElement:
+			m.keys = viewPortKeys()
+		}
 	}
 }
 
@@ -112,6 +132,7 @@ func updateInitial(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		m.StatusBar.Level = statusbar.LevelSuccess
 		m.StatusBar.Content = "Ready to start press any key ...."
 		m.StatusBar.StopSpinner()
+		m.focusedElement = listElement
 		m.menuItems.ResetFilter()
 		m.menuItems.SetFilterText("")
 		m.menuItems.SetFilterState(list.FilterState(list.Filtering))
@@ -138,22 +159,43 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
+	// Handle global keys and other messages first
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if m.menuItems.FilterState() == list.Filtering {
-			switch {
-			case key.Matches(msg, m.keys.Up):
-				m.menuItems.CursorUp()
-				return m, nil
-			case key.Matches(msg, m.keys.Down):
-				m.menuItems.CursorDown()
-				return m, nil
-			}
-		}
 		switch {
+		case key.Matches(msg, m.keys.SwitchFocus):
+			m.changeFocusedElement()
+			return m, nil
 		case key.Matches(msg, m.keys.GlobalQuit):
 			return m, tea.Quit
-		case key.Matches(msg, m.keys.Enter):
+		}
+	case gotSpellbookMsg: // Centralized update path
+		m.spellbook = &msg.spellbook
+		m.state = ready
+		m.keys = mainListKeys()
+		m.StatusBar.StopSpinner()
+		m.StatusBar.Content = "Ready"
+		m.StatusBar.Level = statusbar.LevelSuccess
+		return m, clearStatusCmd()
+	}
+
+	// Then, route messages to the correct component based on focus
+	switch m.focusedElement {
+	case listElement:
+		// Handle list filtering and selection
+		if m.menuItems.FilterState() == list.Filtering {
+			// Restore the original filter logic here
+			if keyMsg, ok := msg.(tea.KeyMsg); ok {
+				switch {
+				case key.Matches(keyMsg, m.keys.Up):
+					m.menuItems.CursorUp()
+				case key.Matches(keyMsg, m.keys.Down):
+					m.menuItems.CursorDown()
+				}
+			}
+		}
+
+		if keyMsg, ok := msg.(tea.KeyMsg); ok && key.Matches(keyMsg, m.keys.Enter) {
 			selectedItem := m.menuItems.SelectedItem()
 			if item, ok := selectedItem.(core.MenuItem); ok {
 				switch item.Value() {
@@ -161,17 +203,12 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					m.state = showingRunes
 					m.keys = viewingRunesKeys()
 					m.StatusBar.Content = "Viewing Runes"
-					m.StatusBar.Level = statusbar.LevelInfo
-					m.cursor = 0
 					return m, nil
 				case 1: // Create Rune
 					m.state = creatingRune
 					m.keys = formKeys()
 					m.StatusBar.Content = "Creating a new Rune"
-					m.StatusBar.Level = statusbar.LevelInfo
-					m.focusIndex = 0
-
-					// Initialize form for creating a rune
+					// Form initialization logic...
 					m.inputs = make([]textinput.Model, 3) // name, desc, one command
 					var t textinput.Model
 					for i := range m.inputs {
@@ -193,8 +230,6 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					m.state = showingLoegs
 					m.keys = viewingLoegsKeys()
 					m.StatusBar.Content = "Viewing Loegs"
-					m.StatusBar.Level = statusbar.LevelInfo
-					m.cursor = 0
 					m.loegKeys = make([]string, 0, len(m.spellbook.Loegs))
 					for k := range m.spellbook.Loegs {
 						m.loegKeys = append(m.loegKeys, k)
@@ -203,23 +238,11 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					return m, nil
 				case 3: // View History
 					m.state = showingHistory
-					// m.keys = viewingHistoryKeys() // TODO: Define these keys
 					m.StatusBar.Content = "Viewing History"
-					m.StatusBar.Level = statusbar.LevelInfo
-					m.cursor = 0
 					return m, m.getHistoryCmd
 				}
 			}
 		}
-	case gotSpellbookMsg: // This is the new centralized update path
-		m.spellbook = &msg.spellbook
-		m.state = ready
-		m.keys = mainListKeys()
-		m.StatusBar.StopSpinner()
-		m.StatusBar.Content = "Ready"
-		m.StatusBar.Level = statusbar.LevelSuccess
-		return m, clearStatusCmd()
-	}
 		m.menuItems, cmd = m.menuItems.Update(msg)
 		cmds = append(cmds, cmd)
 
