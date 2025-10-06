@@ -220,16 +220,16 @@ func renderSpellbook(sb *Spellbook) (string, error) {
 	}
 
 	// Loegs Section
-	md.WriteString("## Loegs (Environment Variables)\n\n")
-	if len(sb.Loegs) == 0 {
-		md.WriteString("No loegs found.\n\n")
-	} else {
-		md.WriteString("| Key | Value |\n")
-		md.WriteString("|-----|-------|\n")
-		for k, v := range sb.Loegs {
-			md.WriteString(fmt.Sprintf("| %s | %s |\n", k, v))
-		}
-	}
+	// md.WriteString("## Loegs (Environment Variables)\n\n")
+	// if len(sb.Loegs) == 0 {
+	// 	md.WriteString("No loegs found.\n\n")
+	// } else {
+	// 	md.WriteString("| Key | Value |\n")
+	// 	md.WriteString("|-----|-------|\n")
+	// 	for k, v := range sb.Loegs {
+	// 		md.WriteString(fmt.Sprintf("| %s | %s |\n", k, v))
+	// 	}
+	// }
 
 	// Write to file for debugging
 	// err := os.WriteFile("spellbook_output.md", []byte(md.String()), 0o644)
