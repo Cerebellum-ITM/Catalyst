@@ -35,7 +35,7 @@ func main() {
 	defer db.Close()
 
 	m := app.NewModel(cfg, db, version)
-	p := tea.NewProgram(m)
+	p := tea.NewProgram(&m)
 
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)

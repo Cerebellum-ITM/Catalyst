@@ -13,7 +13,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea/v2"
 )
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
 	m.StatusBar, cmd = m.StatusBar.Update(msg)
@@ -46,31 +46,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, noDelayClearStatusCmd()
 	}
 
-	var subCmd tea.Cmd
-	var subModel tea.Model
 
 	switch m.state {
 	case ready:
-		subModel, subCmd = updateReady(msg, m)
+		return updateReady(msg, m)
 	case showingRunes:
-		subModel, subCmd = updateShowingRunes(msg, m)
+		return updateShowingRunes(msg, m)
 	case creatingRune:
-		subModel, subCmd = updateCreatingRune(msg, m)
+		return updateCreatingRune(msg, m)
 	case executingRune:
-		subModel, subCmd = updateExecutingRune(msg, m)
+		return updateExecutingRune(msg, m)
 	case showingLoegs:
-		subModel, subCmd = updateShowingLoegs(msg, m)
+		return updateShowingLoegs(msg, m)
 	case creatingLoeg:
-		subModel, subCmd = updateCreatingLoeg(msg, m)
+		return updateCreatingLoeg(msg, m)
 	case editingRune:
-		subModel, subCmd = updateEditingRune(msg, m)
+		return updateEditingRune(msg, m)
 	case showingHistory:
-		subModel, subCmd = updateShowingHistory(msg, m)
+		return updateShowingHistory(msg, m)
 	default:
-		subModel, subCmd = updateInitial(msg, m)
+		return updateInitial(msg, m)
 	}
-	cmds = append(cmds, subCmd)
-	return subModel, tea.Batch(cmds...)
 }
 
 func (m *Model) getDefaultStatusBarContent() string {
@@ -103,7 +99,7 @@ func continueToReadyCmd() tea.Cmd {
 }
 
 // updateInitial handles updates during the initial spellbook check/creation.
-func updateInitial(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
+func updateInitial(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
@@ -138,7 +134,7 @@ func updateInitial(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 }
 
 // updateReady handles updates when the main menu is active.
-func updateReady(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
+func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
@@ -224,18 +220,19 @@ func updateReady(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		m.StatusBar.Level = statusbar.LevelSuccess
 		return m, clearStatusCmd()
 	}
-	var subCmd tea.Cmd
+		m.menuItems, cmd = m.menuItems.Update(msg)
+		cmds = append(cmds, cmd)
 
-	m.menuItems, cmd = m.menuItems.Update(msg)
+	case viewportElement:
+		m.viewportSpellBook, cmd = m.viewportSpellBook.Update(msg)
+		cmds = append(cmds, cmd)
+	}
 
-	m.viewportSpellBook, subCmd = m.viewportSpellBook.Update(msg)
-	cmds = append(cmds, cmd)
-	cmds = append(cmds, subCmd)
 	return m, tea.Batch(cmds...)
 }
 
 // updateShowingRunes handles updates when displaying the list of runes.
-func updateShowingRunes(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
+func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
@@ -325,7 +322,7 @@ func updateShowingRunes(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 }
 
 // updateCreatingRune handles updates for the rune creation form.
-func updateCreatingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
+func updateCreatingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
@@ -358,12 +355,12 @@ func updateCreatingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		m.StatusBar.Level = statusbar.LevelError
 		return m, clearStatusCmd()
 	}
-	model, cmd := updateRuneForm(msg, m)
-	return model, cmd
+	cmd := updateRuneForm(msg, m)
+	return m, cmd
 }
 
 // updateExecutingRune handles updates while a rune is running.
-func updateExecutingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
+func updateExecutingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
@@ -391,7 +388,7 @@ func updateExecutingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 }
 
 // updateEditingRune handles the form for updating an existing rune.
-func updateEditingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
+func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
@@ -431,8 +428,8 @@ func updateEditingRune(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		m.StatusBar.Level = statusbar.LevelError
 		return m, clearStatusCmd()
 	}
-	model, cmd := updateRuneForm(msg, m)
-	return model, cmd
+	cmd := updateRuneForm(msg, m)
+	return m, cmd
 }
 
 // updateInputs passes messages to the textinput components.
@@ -445,7 +442,7 @@ func (m *Model) updateInputs(msg tea.Msg) tea.Cmd {
 }
 
 // updateShowingLoegs handles updates when displaying the list of loegs.
-func updateShowingLoegs(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
+func updateShowingLoegs(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
@@ -521,7 +518,7 @@ func updateShowingLoegs(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 }
 
 // updateCreatingLoeg handles the form for creating a new loeg.
-func updateCreatingLoeg(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
+func updateCreatingLoeg(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
@@ -582,7 +579,7 @@ func updateCreatingLoeg(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 }
 
 // updateShowingHistory handles updates when viewing the execution history.
-func updateShowingHistory(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
+func updateShowingHistory(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {

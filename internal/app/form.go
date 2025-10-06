@@ -6,7 +6,7 @@ import (
 )
 
 // updateRuneForm contains the shared logic for both creating and editing rune forms.
-func updateRuneForm(msg tea.Msg, m Model) (Model, tea.Cmd) {
+func updateRuneForm(msg tea.Msg, m *Model) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -32,7 +32,7 @@ func updateRuneForm(msg tea.Msg, m Model) (Model, tea.Cmd) {
 					m.inputs[i].Blur()
 				}
 			}
-			return m, tea.Batch(cmds...)
+			return tea.Batch(cmds...)
 
 		case "enter":
 			// In command fields (index 2+), enter creates a new field
@@ -47,7 +47,7 @@ func updateRuneForm(msg tea.Msg, m Model) (Model, tea.Cmd) {
 				
 				m.inputs[m.focusIndex].Blur()
 				m.focusIndex = newIndex
-				return m, textinput.Blink
+				return textinput.Blink
 			}
 
 		case "backspace":
@@ -56,12 +56,12 @@ func updateRuneForm(msg tea.Msg, m Model) (Model, tea.Cmd) {
 				m.inputs = append(m.inputs[:m.focusIndex], m.inputs[m.focusIndex+1:]...)
 				m.focusIndex--
 				m.inputs[m.focusIndex].Focus()
-				return m, textinput.Blink
+				return textinput.Blink
 			}
 		}
 	}
 
 	// Update the focused text input
 	cmd := m.updateInputs(msg)
-	return m, cmd
+	return cmd
 }
