@@ -19,6 +19,7 @@ import (
 	"github.com/charmbracelet/bubbles/v2/help"
 	"github.com/charmbracelet/bubbles/v2/list"
 	"github.com/charmbracelet/bubbles/v2/textinput"
+	"github.com/charmbracelet/bubbles/v2/viewport"
 	tea "github.com/charmbracelet/bubbletea/v2"
 )
 
@@ -71,29 +72,30 @@ func noDelayClearStatusCmd() tea.Cmd {
 
 // Model is the main application model.
 type Model struct {
-	keys            KeyMap
-	help            help.Model
-	sshClient       *ssh.Client
-	localRunner     *local.Runner
-	db              *db.Database
-	state           state
-	previousState   state
-	pwd             string // Current working directory (spellbook path)
-	menuItems       list.Model
-	cursor          int
-	spellbook       *Spellbook        // Our in-memory cache
-	loegKeys        []string          // For ordered display and selection
-	history         []db.HistoryEntry // For the history view
-	inputs          []textinput.Model // For the "Create Rune" form
-	focusIndex      int
-	output          string // To store output from executed runes
-	err             error
-	width           int
-	height          int
-	StatusBar       statusbar.StatusBar
-	Theme           *styles.Theme
-	Version         string
-	SpellbookString string
+	keys              KeyMap
+	help              help.Model
+	sshClient         *ssh.Client
+	localRunner       *local.Runner
+	db                *db.Database
+	state             state
+	previousState     state
+	pwd               string // Current working directory (spellbook path)
+	menuItems         list.Model
+	cursor            int
+	spellbook         *Spellbook // Our in-memory cache
+	viewportSpellBook viewport.Model
+	loegKeys          []string          // For ordered display and selection
+	history           []db.HistoryEntry // For the history view
+	inputs            []textinput.Model // For the "Create Rune" form
+	focusIndex        int
+	output            string // To store output from executed runes
+	err               error
+	width             int
+	height            int
+	StatusBar         statusbar.StatusBar
+	Theme             *styles.Theme
+	Version           string
+	SpellbookString   string
 }
 
 // NewModel creates a new application model.
@@ -114,20 +116,21 @@ func NewModel(cfg *config.Config, db *db.Database, version string) Model {
 	statusbar.ShowSpinner = true
 
 	m := Model{
-		help:            help,
-		keys:            initialsKeys,
-		sshClient:       ssh.NewClient(cfg.RuneCraftHost),
-		localRunner:     local.NewRunner(),
-		db:              db,
-		state:           checkingSpellbook,
-		pwd:             pwd,
-		menuItems:       core.NewMainMenu(*theme),
-		inputs:          make([]textinput.Model, 3), // name, desc, cmds
-		focusIndex:      0,
-		Theme:           theme,
-		StatusBar:       statusbar,
-		Version:         version,
-		SpellbookString: fmt.Sprintf("Main Menu - %s", utils.TruncatePath(pwd, 2)),
+		help:              help,
+		keys:              initialsKeys,
+		sshClient:         ssh.NewClient(cfg.RuneCraftHost),
+		localRunner:       local.NewRunner(),
+		db:                db,
+		state:             checkingSpellbook,
+		pwd:               pwd,
+		menuItems:         core.NewMainMenu(*theme),
+		inputs:            make([]textinput.Model, 3), // name, desc, cmds
+		focusIndex:        0,
+		Theme:             theme,
+		StatusBar:         statusbar,
+		Version:           version,
+		SpellbookString:   fmt.Sprintf("Main Menu - %s", utils.TruncatePath(pwd, 2)),
+		viewportSpellBook: viewport.New(),
 	}
 
 	// Initialize text inputs for the create rune form

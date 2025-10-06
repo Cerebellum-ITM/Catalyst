@@ -6,6 +6,8 @@ import (
 
 	"catalyst/internal/ascii"
 
+	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/glamour/styles"
 	"github.com/charmbracelet/lipgloss/v2"
 )
 
@@ -40,6 +42,7 @@ func (m Model) showProntMessage(availableHeightForMainContent int) string {
 
 func (m Model) View() string {
 	var s strings.Builder
+	var stateView string
 
 	statusBarContent := m.StatusBar.Render()
 	helpView := lipgloss.NewStyle().Padding(0, 2).SetString(m.help.View(m.keys)).String()
@@ -60,9 +63,24 @@ func (m Model) View() string {
 	case spellbookLoaded:
 		s.WriteString(printMessage)
 	case ready:
-		m.menuItems.SetWidth(m.width)
+		m.viewportSpellBook.SetWidth(m.width * 3 / 4)
+		m.viewportSpellBook.SetHeight(availableHeightForMainContent)
+		glamourContent := "Test text"
+		glamourStyle := styles.DarkStyleConfig
+		rendererGlamour, _ := glamour.NewTermRenderer(
+			glamour.WithStyles(glamourStyle),
+			glamour.WithWordWrap(m.viewportSpellBook.Width()),
+		)
+		glamourContentStr, _ := rendererGlamour.Render(glamourContent)
+		m.viewportSpellBook.SetContent(glamourContentStr)
+		m.menuItems.SetWidth(m.width / 4)
 		m.menuItems.SetHeight(availableHeightForMainContent)
-		s.WriteString(m.menuItems.View())
+		stateView = lipgloss.JoinHorizontal(
+			lipgloss.Left,
+			m.menuItems.View(),
+			m.viewportSpellBook.View(),
+		)
+		s.WriteString(stateView)
 
 	case showingRunes:
 		s.WriteString(fmt.Sprintf("Runes in %s:\n\n", m.pwd))

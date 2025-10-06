@@ -140,6 +140,7 @@ func updateInitial(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 // updateReady handles updates when the main menu is active.
 func updateReady(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -223,8 +224,14 @@ func updateReady(msg tea.Msg, m Model) (tea.Model, tea.Cmd) {
 		m.StatusBar.Level = statusbar.LevelSuccess
 		return m, clearStatusCmd()
 	}
+	var subCmd tea.Cmd
+
 	m.menuItems, cmd = m.menuItems.Update(msg)
-	return m, cmd
+
+	m.viewportSpellBook, subCmd = m.viewportSpellBook.Update(msg)
+	cmds = append(cmds, cmd)
+	cmds = append(cmds, subCmd)
+	return m, tea.Batch(cmds...)
 }
 
 // updateShowingRunes handles updates when displaying the list of runes.
