@@ -165,17 +165,38 @@ func NewModel(cfg *config.Config, db *db.Database, version string) Model {
 	return m
 }
 
-func (m *Model) recalculateSizes() {
+type recalcOptions struct {
+	extraContent int
+}
+
+type RecalcOption func(*recalcOptions)
+
+func WithExtraContent(height int) RecalcOption {
+	return func(opts *recalcOptions) {
+		opts.extraContent = height
+	}
+}
+
+func (m *Model) recalculateSizes(options ...RecalcOption) {
 	if m.width == 0 || m.height == 0 {
 		return
 	}
+
+	config := &recalcOptions{
+		extraContent: 0,
+	}
+
+	for _, option := range options {
+		option(config)
+	}
+
 	// Calculate available height for main content
 	statusBarContent := m.StatusBar.Render()
 	helpView := lipgloss.NewStyle().Padding(0, 2).SetString(m.help.View(m.keys)).String()
 	statusBarH := lipgloss.Height(statusBarContent)
 	helpViewH := lipgloss.Height(helpView)
 	// 2 for vertical spaces between status bar, content, and help
-	availableHeightForMainContent := m.height - statusBarH - helpViewH - 2
+	availableHeightForMainContent := m.height - statusBarH - helpViewH - 2 - config.extraContent
 
 	// Set sizes for components
 	m.viewportSpellBook.SetWidth(m.width * 3 / 4)
