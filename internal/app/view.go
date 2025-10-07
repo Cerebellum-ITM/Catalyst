@@ -6,7 +6,6 @@ import (
 	"image/color"
 	"strings"
 
-	"catalyst/internal/app/components/core"
 	"catalyst/internal/ascii"
 	"catalyst/internal/types"
 	"catalyst/internal/utils"
@@ -145,9 +144,6 @@ func (m *Model) runesListFooter(state string) string {
 
 func (m *Model) runeDetailHeader(state string) string {
 	title := "Rune Details"
-	if selectedItem, ok := m.runesList.SelectedItem().(core.RuneItem); ok {
-		title = selectedItem.Title()
-	}
 	return m.buildStyledBorder(
 		state,
 		title,
@@ -168,9 +164,53 @@ func (m *Model) runeDetailFooter(state string) string {
 	)
 }
 
+func (m *Model) formHeader(state string) string {
+	title := "Create New Rune"
+	// In a real implementation, you might check if you are editing vs creating
+	// and change the title accordingly.
+	return m.buildStyledBorder(
+		state,
+		title,
+		HeaderStyle,
+		(m.width/2), // Assuming form takes half the width
+		AlignHeader,
+	)
+}
+
+func (m *Model) formFooter(state string) string {
+	return m.buildStyledBorder(
+		state,
+		"",
+		FooterStyle,
+		(m.width/2),
+		AlignFooter,
+	)
+}
+
+func (m *Model) previewHeader(state string) string {
+	return m.buildStyledBorder(
+		state,
+		"Live Preview",
+		HeaderStyle,
+		(m.width/2),
+		AlignHeader,
+	)
+}
+
+func (m *Model) previewFooter(state string) string {
+	info := fmt.Sprintf("%3.f%%", m.formViewport.ScrollPercent()*100)
+	return m.buildStyledBorder(
+		state,
+		info,
+		FooterStyle,
+		(m.width/2),
+		AlignFooter,
+	)
+}
+
 func formatRuneDetail(rune types.Rune) string {
 	var md strings.Builder
-	md.WriteString(fmt.Sprintf("## %s\n\n", rune.Name))
+	md.WriteString(fmt.Sprintf("# %s\n", "Description"))
 	md.WriteString(fmt.Sprintf("> %s\n\n", rune.Description))
 	md.WriteString("```sh\n")
 	for _, cmd := range rune.Commands {
@@ -314,34 +354,66 @@ func (m *Model) View() string {
 		)
 		s.WriteString(stateView)
 
-	case creatingRune:
-		s.WriteString("Create a New Rune\n\n")
-		for i := range m.inputs {
-			s.WriteString(m.inputs[i].View() + "\n")
-		}
-
-		submitButton := "Submit"
-		if m.focusIndex == len(m.inputs) {
-			submitButton = highlight.Render(submitButton)
-		}
-		s.WriteString(fmt.Sprintf("\n%s\n", submitButton))
-
-	case editingRune:
-		s.WriteString(
-			fmt.Sprintf(
-				"Editing Rune: %s\n\n",
-				highlight.Render(m.spellbook.Runes[m.cursor].Name),
-			),
+	case creatingRune, editingRune:
+		var (
+			formState    = "blur"
+			previewState = "blur"
+			formBuilder  strings.Builder
 		)
-		for i := range m.inputs {
-			s.WriteString(m.inputs[i].View() + "\n")
+
+		switch m.focusedElement {
+		case formElement:
+			formState = "focus"
+		case viewportElement:
+			previewState = "focus"
 		}
 
+		// Build the form side content
+		for i := range m.inputs {
+			formBuilder.WriteString(m.inputs[i].View() + "\n")
+		}
 		submitButton := "Submit"
 		if m.focusIndex == len(m.inputs) {
 			submitButton = highlight.Render(submitButton)
 		}
-		s.WriteString(fmt.Sprintf("\n%s\n", submitButton))
+		formBuilder.WriteString(fmt.Sprintf("\n%s\n", submitButton))
+
+		formHeader := m.formHeader(formState)
+		formFooter := m.formFooter(formState)
+		previewHeader := m.previewHeader(previewState)
+		previewFooter := m.previewFooter(previewState)
+
+		// Correctly calculate available height *before* building the final layout
+		extraContentHeight := lipgloss.Height(formHeader) + lipgloss.Height(formFooter)
+		m.recalculateSizes(WithExtraContent(extraContentHeight))
+
+		// Now calculate the spacer with the correct available height
+		formContent := formBuilder.String()
+		formHeight := lipgloss.Height(formContent)
+		spacerHeight := max(0, m.availableHeight-formHeight)
+		spacer := lipgloss.NewStyle().Height(spacerHeight).Render("")
+
+		leftSideContent := lipgloss.JoinVertical(
+			lipgloss.Left,
+			formHeader,
+			formContent,
+			spacer,
+			formFooter,
+		)
+
+		rightSideContent := lipgloss.JoinVertical(
+			lipgloss.Left,
+			previewHeader,
+			m.formViewport.View(),
+			previewFooter,
+		)
+
+		stateView = lipgloss.JoinHorizontal(
+			lipgloss.Left,
+			leftSideContent,
+			rightSideContent,
+		)
+		s.WriteString(stateView)
 
 	case executingRune:
 		selectedRune := m.spellbook.Runes[m.cursor]

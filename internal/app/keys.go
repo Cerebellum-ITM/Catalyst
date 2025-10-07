@@ -85,10 +85,11 @@ func viewingLoegsKeys() KeyMap {
 
 func formKeys() KeyMap {
 	return KeyMap{
-		Enter:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "submit")),
-		Esc:        key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
-		GlobalQuit: key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "quit")),
-		Help:       key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+		Enter:       key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "submit")),
+		Esc:         key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
+		SwitchFocus: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "Toggle focus")),
+		GlobalQuit:  key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "quit")),
+		Help:        key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 	}
 }
 

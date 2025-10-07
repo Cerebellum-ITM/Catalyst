@@ -57,8 +57,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return updateReady(msg, m)
 	case showingRunes:
 		return updateShowingRunes(msg, m)
-	case creatingRune:
-		return updateCreatingRune(msg, m)
 	case executingRune:
 		return updateExecutingRune(msg, m)
 	case showingLoegs:
@@ -75,10 +73,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) changeFocusedElement() {
-	if m.focusedElement == listElement {
+	switch m.focusedElement {
+	case listElement:
 		m.focusedElement = viewportElement
-	} else {
-		m.focusedElement = listElement
+	case formElement:
+		m.focusedElement = viewportElement
+	case viewportElement:
+		switch m.state {
+		case editingRune:
+			m.focusedElement = formElement
+		default:
+			m.focusedElement = listElement
+		}
 	}
 
 	switch m.state {
@@ -93,6 +99,13 @@ func (m *Model) changeFocusedElement() {
 		switch m.focusedElement {
 		case listElement:
 			m.keys = viewingRunesKeys()
+		case viewportElement:
+			m.keys = viewPortKeys()
+		}
+	case editingRune:
+		switch m.focusedElement {
+		case formElement:
+			m.keys = formKeys()
 		case viewportElement:
 			m.keys = viewPortKeys()
 		}
@@ -226,6 +239,7 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					m.runesList.SetFilterState(list.FilterState(list.Filtering))
 
 					m.state = showingRunes
+					m.focusedElement = formElement
 					m.keys = viewingRunesKeys()
 					m.StatusBar.Content = "Viewing Runes"
 
@@ -241,10 +255,12 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 					return m, nil
 				case 1: // Create Rune
-					m.state = creatingRune
+					m.state = editingRune
+					m.focusedElement = formElement
 					m.keys = formKeys()
 					m.StatusBar.Content = "Creating a new Rune"
-					// Form initialization logic...
+
+					// Clear inputs for new rune entry
 					m.inputs = make([]textinput.Model, 3) // name, desc, one command
 					var t textinput.Model
 					for i := range m.inputs {
@@ -261,6 +277,7 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 						}
 						m.inputs[i] = t
 					}
+					m.recalculateSizes()
 					return m, textinput.Blink
 				case 2: // Manage Loegs
 					m.state = showingLoegs
@@ -421,44 +438,6 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-// updateCreatingRune handles updates for the rune creation form.
-func updateCreatingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch {
-		case key.Matches(msg, m.keys.Esc):
-			m.state = ready
-			m.keys = mainListKeys()
-			m.StatusBar.Content = m.SpellbookString
-			m.StatusBar.Level = statusbar.LevelInfo
-			return m, nil
-		case key.Matches(msg, m.keys.Enter):
-			if m.focusIndex == len(m.inputs) {
-				m.StatusBar.Content = "Creating rune..."
-				m.StatusBar.Level = statusbar.LevelInfo
-				return m, tea.Batch(m.StatusBar.StartSpinner(), m.createRuneCmd)
-			}
-		}
-	case gotSpellbookMsg: // Success message
-		m.spellbook = &msg.spellbook
-		m.state = showingRunes
-		m.keys = viewingRunesKeys()
-		m.StatusBar.StopSpinner()
-		m.StatusBar.Content = "Successfully created rune"
-		m.StatusBar.Level = statusbar.LevelSuccess
-		return m, clearStatusCmd()
-	case errMsg:
-		m.err = msg.err
-		m.state = errState
-		m.StatusBar.StopSpinner()
-		m.StatusBar.Content = "Error: " + msg.err.Error()
-		m.StatusBar.Level = statusbar.LevelError
-		return m, clearStatusCmd()
-	}
-	cmd := updateRuneForm(msg, m)
-	return m, cmd
-}
-
 // updateExecutingRune handles updates while a rune is running.
 func updateExecutingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -489,47 +468,65 @@ func updateExecutingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 // updateEditingRune handles the form for updating an existing rune.
 func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if key.Matches(msg, m.keys.SwitchFocus) {
+			m.changeFocusedElement()
+			return m, nil
+		}
+
+		if m.focusedElement == viewportElement {
+			m.formViewport, cmd = m.formViewport.Update(msg)
+			cmds = append(cmds, cmd)
+			return m, tea.Batch(cmds...)
+		}
+
 		switch {
 		case key.Matches(msg, m.keys.Esc):
-			m.state = showingRunes
+			m.state = showingRunes // Go back to the list
 			m.keys = viewingRunesKeys()
-			m.StatusBar.Content = "Viewing Runes"
-			m.StatusBar.Level = statusbar.LevelInfo
 			return m, nil
 		case key.Matches(msg, m.keys.Enter):
 			if m.focusIndex == len(m.inputs) {
-				m.StatusBar.Content = "Updating rune..."
-				m.StatusBar.Level = statusbar.LevelInfo
-				return m, tea.Batch(m.StatusBar.StartSpinner(), m.updateRuneCmd)
+				// Determine if we are creating or updating
+				// This is a simplified check; a more robust way would be to have an explicit flag.
+				isUpdating := m.inputs[0].Value() != ""
+
+				if isUpdating {
+					m.StatusBar.Content = "Updating rune..."
+					return m, tea.Batch(m.StatusBar.StartSpinner(), m.updateRuneCmd)
+				}
+				m.StatusBar.Content = "Creating rune..."
+				return m, tea.Batch(m.StatusBar.StartSpinner(), m.createRuneCmd)
 			}
 		}
-	case gotSpellbookMsg: // Success message
-		m.spellbook = &msg.spellbook
-		m.state = showingRunes
-		m.keys = viewingRunesKeys()
-		m.StatusBar.StopSpinner()
-		m.StatusBar.Content = "Successfully updated rune"
-		m.StatusBar.Level = statusbar.LevelSuccess
-		return m, clearStatusCmd()
-	case noChangesMsg:
-		m.state = showingRunes
-		m.keys = viewingRunesKeys()
-		m.StatusBar.StopSpinner()
-		m.StatusBar.Content = "No changes detected"
-		m.StatusBar.Level = statusbar.LevelWarning
-		return m, clearStatusCmd()
-	case errMsg:
-		m.err = msg.err
-		m.state = errState
-		m.StatusBar.StopSpinner()
-		m.StatusBar.Content = "Error: " + msg.err.Error()
-		m.StatusBar.Level = statusbar.LevelError
-		return m, clearStatusCmd()
 	}
-	cmd := updateRuneForm(msg, m)
-	return m, cmd
+
+	// Update text inputs
+	cmd = m.updateInputs(msg)
+	cmds = append(cmds, cmd)
+
+	// Update preview viewport
+	tempRune := types.Rune{
+		Name:        m.inputs[0].Value(),
+		Description: m.inputs[1].Value(),
+	}
+	var runeCmds []string
+	for i := 2; i < len(m.inputs); i++ {
+		if val := m.inputs[i].Value(); val != "" {
+			runeCmds = append(runeCmds, val)
+		}
+	}
+	tempRune.Commands = runeCmds
+
+	md := formatRuneDetail(tempRune)
+	rendered, _ := glamour.Render(md, "dark")
+	m.formViewport.SetContent(rendered)
+
+	return m, tea.Batch(cmds...)
 }
 
 // updateInputs passes messages to the textinput components.

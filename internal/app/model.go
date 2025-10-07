@@ -46,7 +46,8 @@ const (
 type focusableElement int
 
 const (
-	listElement focusableElement = iota // 0
+	formElement focusableElement = iota
+	listElement
 	viewportElement
 )
 
@@ -96,6 +97,7 @@ type Model struct {
 	cursor            int
 	spellbook         *Spellbook // Our in-memory cache
 	viewportSpellBook viewport.Model
+	formViewport      viewport.Model
 	loegKeys          []string          // For ordered display and selection
 	history           []db.HistoryEntry // For the history view
 	inputs            []textinput.Model // For the "Create Rune" form
@@ -144,6 +146,7 @@ func NewModel(cfg *config.Config, db *db.Database, version string) Model {
 		Version:           version,
 		SpellbookString:   fmt.Sprintf("Main Menu - %s", utils.TruncatePath(pwd, 2)),
 		viewportSpellBook: viewport.New(),
+		formViewport:      viewport.New(),
 	}
 
 	// Initialize text inputs for the create rune form
@@ -208,6 +211,9 @@ func (m *Model) recalculateSizes(options ...RecalcOption) {
 		m.runesList.SetHeight(availableHeightForMainContent)
 		m.viewportSpellBook.SetWidth(m.width * 2 / 3)
 		m.viewportSpellBook.SetHeight(availableHeightForMainContent)
+	case editingRune:
+		m.formViewport.SetWidth(m.width / 2)
+		m.formViewport.SetHeight(availableHeightForMainContent)
 	default:
 		m.viewportSpellBook.SetWidth(m.width * 3 / 4)
 		m.viewportSpellBook.SetHeight(availableHeightForMainContent)
