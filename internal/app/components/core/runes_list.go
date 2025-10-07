@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"io"
 
-	"catalyst/internal/types"
 	"catalyst/internal/app/styles"
+	"catalyst/internal/types"
 
+	"github.com/charmbracelet/bubbles/v2/key"
 	"github.com/charmbracelet/bubbles/v2/list"
 )
 
@@ -50,6 +51,11 @@ func NewRunesList(theme styles.Theme, runes []types.Rune) list.Model {
 	runesList.SetShowHelp(false)
 	runesList.SetShowTitle(false)
 	runesList.SetShowStatusBar(false)
-	runesList.SetFilteringEnabled(false) // Assuming no filtering for now
+	runesList.SetFilteringEnabled(true)
+	runesList.KeyMap.AcceptWhileFiltering = key.NewBinding(
+		key.WithKeys("enter", "/", "up", "down"),
+	)
+	runesList.KeyMap.CancelWhileFiltering = key.NewBinding(key.WithKeys("/"))
+
 	return runesList
 }

@@ -1,12 +1,12 @@
 package app
 
 import (
-	"catalyst/internal/types"
 	"sort"
 	"time"
 
-	"github.com/charmbracelet/glamour"
+	"catalyst/internal/types"
 
+	"github.com/charmbracelet/glamour"
 
 	"catalyst/internal/app/components/core"
 	"catalyst/internal/app/components/statusbar"
@@ -15,7 +15,6 @@ import (
 	"github.com/charmbracelet/bubbles/v2/list"
 	"github.com/charmbracelet/bubbles/v2/textinput"
 	tea "github.com/charmbracelet/bubbletea/v2"
-
 )
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -202,6 +201,11 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					m.menuItems.CursorUp()
 				case key.Matches(keyMsg, m.keys.Down):
 					m.menuItems.CursorDown()
+				case key.Matches(keyMsg, m.keys.ClearFilter):
+					m.menuItems.ResetFilter()
+					m.menuItems.SetFilterText("")
+					m.menuItems.SetFilterState(list.FilterState(list.Filtering))
+					return m, nil
 				}
 			}
 		}
@@ -217,6 +221,9 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 						items[i] = core.RuneItem{Rune: r}
 					}
 					m.runesList.SetItems(items)
+					m.runesList.ResetFilter()
+					m.runesList.SetFilterText("")
+					m.runesList.SetFilterState(list.FilterState(list.Filtering))
 
 					m.state = showingRunes
 					m.keys = viewingRunesKeys()
@@ -228,10 +235,10 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 						rendered, _ := glamour.Render(md, "dark")
 						m.viewportSpellBook.SetContent(rendered)
 					}
-					
+
 					// Recalculate sizes for the new layout
 					m.recalculateSizes()
-					
+
 					return m, nil
 				case 1: // Create Rune
 					m.state = creatingRune
@@ -309,6 +316,15 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 		// Otherwise, handle list navigation and actions.
 		switch {
+		case key.Matches(msg, m.keys.Up):
+			m.runesList.CursorUp()
+		case key.Matches(msg, m.keys.Down):
+			m.runesList.CursorDown()
+		case key.Matches(msg, m.keys.ClearFilter):
+			m.runesList.ResetFilter()
+			m.runesList.SetFilterText("")
+			m.runesList.SetFilterState(list.FilterState(list.Filtering))
+			return m, nil
 		case key.Matches(msg, m.keys.Esc):
 			m.state = ready
 			m.keys = mainListKeys()
@@ -347,7 +363,7 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				selectedRune := selectedRuneItem.Rune
-				
+
 				m.inputs = make([]textinput.Model, 2+len(selectedRune.Commands))
 
 				t := textinput.New()
@@ -371,12 +387,12 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				return m, textinput.Blink
 			}
 
-		// ... other key matches like delete, edit ...
+			// ... other key matches like delete, edit ...
 		}
-	
+
 	case gotSpellbookMsg: // This case is now primarily for refreshing the data
 		m.spellbook = &msg.spellbook
-		
+
 		items := make([]list.Item, len(m.spellbook.Runes))
 		for i, r := range m.spellbook.Runes {
 			items[i] = core.RuneItem{Rune: r}
