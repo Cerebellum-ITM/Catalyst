@@ -14,12 +14,11 @@ import (
 	"catalyst/internal/db"
 	"catalyst/internal/local"
 	"catalyst/internal/ssh"
-	"catalyst/internal/utils"
 	"catalyst/internal/types"
+	"catalyst/internal/utils"
 
 	"github.com/charmbracelet/bubbles/v2/help"
 	"github.com/charmbracelet/bubbles/v2/list"
-	"github.com/charmbracelet/bubbles/v2/textinput"
 	"github.com/charmbracelet/bubbles/v2/viewport"
 	tea "github.com/charmbracelet/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss/v2"
@@ -98,9 +97,9 @@ type Model struct {
 	spellbook         *Spellbook // Our in-memory cache
 	viewportSpellBook viewport.Model
 	formViewport      viewport.Model
-	loegKeys          []string          // For ordered display and selection
-	history           []db.HistoryEntry // For the history view
-	inputs            []textinput.Model // For the "Create Rune" form
+	loegKeys          []string               // For ordered display and selection
+	history           []db.HistoryEntry      // For the history view
+	inputs            []core.CustomTextInput // For the "Create Rune" form
 	focusIndex        int
 	output            string // To store output from executed runes
 	err               error
@@ -139,7 +138,7 @@ func NewModel(cfg *config.Config, db *db.Database, version string) Model {
 		pwd:               pwd,
 		menuItems:         core.NewMainMenu(*theme),
 		runesList:         core.NewRunesList(*theme, []types.Rune{}),
-		inputs:            make([]textinput.Model, 3), // name, desc, cmds
+		inputs:            make([]core.CustomTextInput, 3), // name, desc, cmds
 		focusIndex:        0,
 		Theme:             theme,
 		StatusBar:         statusbar,
@@ -150,20 +149,20 @@ func NewModel(cfg *config.Config, db *db.Database, version string) Model {
 	}
 
 	// Initialize text inputs for the create rune form
-	var t textinput.Model
+	var t core.CustomTextInput
 	for i := range m.inputs {
-		t = textinput.New()
-		t.CharLimit = 128
+		t = core.NewTextInput(*theme)
+		t.Model.CharLimit = 128
 
 		switch i {
 		case 0:
-			t.Placeholder = "Rune Name"
-			t.Focus()
+			t.Model.Placeholder = "Rune Name"
+			t.Model.Focus()
 		case 1:
-			t.Placeholder = "Description"
+			t.Model.Placeholder = "Description"
 		case 2:
-			t.Placeholder = "Commands (semicolon-separated)"
-			t.CharLimit = 256
+			t.Model.Placeholder = "Commands (semicolon-separated)"
+			t.Model.CharLimit = 256
 		}
 		m.inputs[i] = t
 	}
@@ -212,6 +211,9 @@ func (m *Model) recalculateSizes(options ...RecalcOption) {
 		m.viewportSpellBook.SetWidth(m.width * 2 / 3)
 		m.viewportSpellBook.SetHeight(availableHeightForMainContent)
 	case editingRune:
+		for i := range m.inputs {
+			m.inputs[i].SetWidth(m.width / 2)
+		}
 		m.formViewport.SetWidth(m.width / 2)
 		m.formViewport.SetHeight(availableHeightForMainContent)
 	default:

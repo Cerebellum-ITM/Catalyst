@@ -261,19 +261,19 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					m.StatusBar.Content = "Creating a new Rune"
 
 					// Clear inputs for new rune entry
-					m.inputs = make([]textinput.Model, 3) // name, desc, one command
-					var t textinput.Model
+					m.inputs = make([]core.CustomTextInput, 3) // name, desc, one command
+					var t core.CustomTextInput
 					for i := range m.inputs {
-						t = textinput.New()
-						t.CharLimit = 256
+						t = core.NewTextInput(*m.Theme)
+						t.Model.CharLimit = 256
 						switch i {
 						case 0:
-							t.Placeholder = "Rune Name"
-							t.Focus()
+							t.Model.Placeholder = "Rune Name"
+							t.Model.Focus()
 						case 1:
-							t.Placeholder = "Description"
+							t.Model.Placeholder = "Description"
 						case 2:
-							t.Placeholder = "Command"
+							t.Model.Placeholder = "Command"
 						}
 						m.inputs[i] = t
 					}
@@ -381,24 +381,25 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				}
 				selectedRune := selectedRuneItem.Rune
 
-				m.inputs = make([]textinput.Model, 2+len(selectedRune.Commands))
+				m.inputs = make([]core.CustomTextInput, 2+len(selectedRune.Commands))
 
-				t := textinput.New()
-				t.Placeholder = "Rune Name"
-				t.SetValue(selectedRune.Name)
-				t.Focus()
+				var t core.CustomTextInput
+				t = core.NewTextInput(*m.Theme)
+				t.Model.Placeholder = "Rune Name"
+				t.Model.SetValue(selectedRune.Name)
+				t.Model.Focus()
 				m.inputs[0] = t
 
-				t = textinput.New()
-				t.Placeholder = "Description"
-				t.SetValue(selectedRune.Description)
+				t = core.NewTextInput(*m.Theme)
+				t.Model.Placeholder = "Description"
+				t.Model.SetValue(selectedRune.Description)
 				m.inputs[1] = t
 
 				for i, cmd := range selectedRune.Commands {
-					t = textinput.New()
-					t.Placeholder = "Command"
-					t.SetValue(cmd)
-					t.CharLimit = 256
+					t = core.NewTextInput(*m.Theme)
+					t.Model.Placeholder = "Command"
+					t.Model.SetValue(cmd)
+					t.Model.CharLimit = 256
 					m.inputs[2+i] = t
 				}
 				return m, textinput.Blink
@@ -484,15 +485,61 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(cmds...)
 		}
 
+		// Handle form logic
 		switch {
 		case key.Matches(msg, m.keys.Esc):
 			m.state = showingRunes // Go back to the list
 			m.keys = viewingRunesKeys()
 			return m, nil
+
+		case key.Matches(msg, m.keys.Up):
+			// Move focus to the next field
+			m.focusIndex--
+			if m.focusIndex < 0 {
+				m.focusIndex = len(m.inputs)
+			}
+			cmds := make([]tea.Cmd, len(m.inputs))
+			for i := range m.inputs {
+				if i == m.focusIndex {
+					cmds[i] = m.inputs[i].Focus()
+				} else {
+					m.inputs[i].Blur()
+				}
+			}
+			return m, tea.Batch(cmds...)
+
+		case key.Matches(msg, m.keys.Down):
+			// Move focus to the next field
+			m.focusIndex++
+			if m.focusIndex > len(m.inputs) {
+				m.focusIndex = 0
+			}
+			cmds := make([]tea.Cmd, len(m.inputs))
+			for i := range m.inputs {
+				if i == m.focusIndex {
+					cmds[i] = m.inputs[i].Focus()
+				} else {
+					m.inputs[i].Blur()
+				}
+			}
+			return m, tea.Batch(cmds...)
+
+		case key.Matches(msg, m.keys.AddCommand):
+			// In command fields (index 2+), creates a new field
+			if m.focusIndex >= 2 {
+				newInput := core.NewTextInput(*m.Theme)
+				newInput.Model.Placeholder = "Command"
+				newInput.Model.Focus()
+				newIndex := m.focusIndex + 1
+				m.inputs = append(m.inputs[:newIndex], append([]core.CustomTextInput{newInput}, m.inputs[newIndex:]...)...)
+				m.inputs[m.focusIndex].Model.Blur()
+				m.focusIndex = newIndex
+				return m, textinput.Blink
+			}
+
 		case key.Matches(msg, m.keys.Enter):
 			if m.focusIndex == len(m.inputs) {
 				// Determine if we are creating or updating
-				// This is a simplified check; a more robust way would be to have an explicit flag.
 				isUpdating := m.inputs[0].Value() != ""
 
 				if isUpdating {
@@ -531,11 +578,18 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 // updateInputs passes messages to the textinput components.
 func (m *Model) updateInputs(msg tea.Msg) tea.Cmd {
-	cmds := make([]tea.Cmd, len(m.inputs))
-	for i := range m.inputs {
-		m.inputs[i], cmds[i] = m.inputs[i].Update(msg)
+	// cmds := make([]tea.Cmd, len(m.inputs))
+	// for i := range m.inputs {
+	// m.inputs[i].Model, cmds[i] = m.inputs[i].Model.Update(msg)
+	// }
+	// return tea.Batch(cmds...)
+	if m.focusIndex >= len(m.inputs) {
+		return nil
 	}
-	return tea.Batch(cmds...)
+	var cmd tea.Cmd
+	// Solo actualizamos el input que tiene el foco.
+	m.inputs[m.focusIndex], cmd = m.inputs[m.focusIndex].Update(msg)
+	return cmd
 }
 
 // updateShowingLoegs handles updates when displaying the list of loegs.
@@ -569,19 +623,19 @@ func updateShowingLoegs(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			m.keys = formKeys()
 			m.StatusBar.Content = "Creating a new loeg"
 			m.StatusBar.Level = statusbar.LevelInfo
-			m.inputs = make([]textinput.Model, 2)
+			m.inputs = make([]core.CustomTextInput, 2)
 			m.focusIndex = 0
 
-			var t textinput.Model
+			var t core.CustomTextInput
 			for i := range m.inputs {
-				t = textinput.New()
-				t.CharLimit = 128
+				t = core.NewTextInput(*m.Theme)
+				t.Model.CharLimit = 128
 				switch i {
 				case 0:
-					t.Placeholder = "KEY"
-					t.Focus()
+					t.Model.Placeholder = "KEY"
+					t.Model.Focus()
 				case 1:
-					t.Placeholder = "VALUE"
+					t.Model.Placeholder = "VALUE"
 				}
 				m.inputs[i] = t
 			}

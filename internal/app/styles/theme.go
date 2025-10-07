@@ -2,10 +2,13 @@ package styles
 
 import (
 	"image/color"
+	"time"
 
 	"github.com/charmbracelet/bubbles/v2/help"
 	"github.com/charmbracelet/bubbles/v2/textarea"
-	// tea "github.com/charmbracelet/bubbletea/v2"
+	"github.com/charmbracelet/bubbles/v2/textinput"
+
+	tea "github.com/charmbracelet/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss/v2"
 )
 
@@ -56,6 +59,7 @@ type Styles struct {
 	LineStyle   lipgloss.Style
 	Help        help.Styles
 	TextArea    textarea.Styles
+	Textinput   textinput.Styles
 }
 
 func (t *Theme) AppStyles() *Styles {
@@ -82,6 +86,24 @@ func (t *Theme) buildStyles() *Styles {
 		HeaderStyle: HeaderStyle,
 		FooterStyle: FooterStyle,
 		LineStyle:   lipgloss.NewStyle(),
+		Textinput: textinput.Styles{
+			Focused: textinput.StyleState{
+				Text:        base.Foreground(t.Accent),
+				Placeholder: base.Foreground(t.FgSubtle),
+				Prompt:      base.Foreground(t.Yellow),
+			},
+			Blurred: textinput.StyleState{
+				Text:        base.Foreground(t.Blur),
+				Placeholder: base.Foreground(t.Blur),
+				Prompt:      base.Foreground(t.Blur),
+			},
+			Cursor: textinput.CursorStyle{
+				Color:      t.Accent,
+				Shape:      tea.CursorBar,
+				Blink:      true,
+				BlinkSpeed: time.Millisecond * 250,
+			},
+		},
 		Help: help.Styles{
 			ShortKey:       base.Foreground(t.Accent),
 			ShortDesc:      base.Foreground(t.FgMuted),

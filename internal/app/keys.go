@@ -24,6 +24,8 @@ type KeyMap struct {
 	Delete      key.Binding
 	New         key.Binding
 	ClearFilter key.Binding
+	NextField   key.Binding
+	AddCommand  key.Binding
 }
 
 func viewPortKeys() KeyMap {
@@ -85,7 +87,13 @@ func viewingLoegsKeys() KeyMap {
 
 func formKeys() KeyMap {
 	return KeyMap{
-		Enter:       key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "submit")),
+		Enter: key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "submit")),
+		AddCommand: key.NewBinding(
+			key.WithKeys("ctrl+a"),
+			key.WithHelp("ctrl+a", "Add cmd"),
+		),
+		Up:          key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", "previous field")),
+		Down:        key.NewBinding(key.WithKeys("down"), key.WithHelp("↓", "next field")),
 		Esc:         key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
 		SwitchFocus: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "Toggle focus")),
 		GlobalQuit:  key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "quit")),
@@ -109,6 +117,9 @@ func (k KeyMap) ShortHelp() []key.Binding {
 	}
 	if k.Down.Enabled() {
 		b = append(b, k.Down)
+	}
+	if k.AddCommand.Enabled() {
+		b = append(b, k.AddCommand)
 	}
 	if k.Enter.Enabled() {
 		b = append(b, k.Enter)
