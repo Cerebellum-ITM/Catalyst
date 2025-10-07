@@ -24,7 +24,7 @@ func NewCharmtoneTheme() *Theme {
 		Input:     charmtone.Sardine,
 		Output:    charmtone.Guppy,
 
-		Primary:   charmtone.Mustard,
+		Primary:   charmtone.Malibu,
 		Secondary: charmtone.Dolly,
 		Tertiary:  charmtone.Zest,
 		Accent:    charmtone.Zinc,
