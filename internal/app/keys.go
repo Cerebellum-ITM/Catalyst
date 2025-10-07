@@ -30,7 +30,8 @@ func viewPortKeys() KeyMap {
 		PgUp:        key.NewBinding(key.WithKeys("pgup"), key.WithHelp("pgup", "page up")),
 		PgDown:      key.NewBinding(key.WithKeys("pgdown"), key.WithHelp("pgdown", "page down")),
 		SwitchFocus: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "Toggle focus")),
-		GlobalQuit:  key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "quit")),
+		Quit:        key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
+		Help:        key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 	}
 }
 
@@ -91,12 +92,6 @@ func executingRuneKeys() KeyMap {
 
 func (k KeyMap) ShortHelp() []key.Binding {
 	b := []key.Binding{}
-	if k.PgUp.Enabled() {
-		b = append(b, k.PgUp)
-	}
-	if k.PgDown.Enabled() {
-		b = append(b, k.PgDown)
-	}
 	if k.Up.Enabled() {
 		b = append(b, k.Up)
 	}
@@ -108,6 +103,12 @@ func (k KeyMap) ShortHelp() []key.Binding {
 	}
 	if k.SwitchFocus.Enabled() {
 		b = append(b, k.SwitchFocus)
+	}
+	if k.PgUp.Enabled() {
+		b = append(b, k.PgUp)
+	}
+	if k.PgDown.Enabled() {
+		b = append(b, k.PgDown)
 	}
 	if k.New.Enabled() {
 		b = append(b, k.New)

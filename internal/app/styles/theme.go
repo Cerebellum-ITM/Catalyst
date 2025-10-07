@@ -50,9 +50,12 @@ type Theme struct {
 }
 
 type Styles struct {
-	Base     lipgloss.Style
-	Help     help.Styles
-	TextArea textarea.Styles
+	Base        lipgloss.Style
+	HeaderStyle lipgloss.Style
+	FooterStyle lipgloss.Style
+	LineStyle   lipgloss.Style
+	Help        help.Styles
+	TextArea    textarea.Styles
 }
 
 func (t *Theme) AppStyles() *Styles {
@@ -65,8 +68,20 @@ func (t *Theme) AppStyles() *Styles {
 func (t *Theme) buildStyles() *Styles {
 	base := lipgloss.NewStyle().
 		Foreground(t.FgBase)
+	HeaderStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderTop(false).
+		Padding(0, 1)
+	FooterStyle := lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderTop(false).
+		Padding(0, 1)
+
 	return &Styles{
-		Base: base,
+		Base:        base,
+		HeaderStyle: HeaderStyle,
+		FooterStyle: FooterStyle,
+		LineStyle:   lipgloss.NewStyle(),
 		Help: help.Styles{
 			ShortKey:       base.Foreground(t.Accent),
 			ShortDesc:      base.Foreground(t.FgMuted),

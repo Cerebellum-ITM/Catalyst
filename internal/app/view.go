@@ -3,20 +3,123 @@ package app
 import (
 	"fmt"
 	// "os"
+	"image/color"
 	"strings"
 
 	"catalyst/internal/ascii"
+	"catalyst/internal/utils"
 
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/glamour/styles"
 	"github.com/charmbracelet/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 )
 
 var (
+	focusColor      color.Color
+	focusColorText  color.Color
+	blurColor       color.Color
+	HeaderStyle     lipgloss.Style
+	FooterStyle     lipgloss.Style
+	LineStyle       lipgloss.Style
 	highlight       = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	VerticalSpace   = lipgloss.NewStyle().Height(1).Render("")
 	HorizontalSpace = lipgloss.NewStyle().Width(10).Render("")
 )
+
+type BorderAlignment int
+
+const (
+	AlignHeader BorderAlignment = iota
+	AlignFooter
+)
+
+func (m *Model) setAppStyles() {
+	HeaderStyle = m.Theme.AppStyles().HeaderStyle
+	FooterStyle = m.Theme.AppStyles().FooterStyle
+	LineStyle = m.Theme.AppStyles().LineStyle
+}
+
+func (m *Model) setColorVariables(state string) (textColor, lineColor ansi.Color) {
+	focusColor = m.Theme.Primary
+	focusColorText = m.Theme.Accent
+	blurColor = m.Theme.Blur
+	if state == "focus" {
+		textColor = focusColorText
+		lineColor = focusColor
+	} else {
+		textColor = blurColor
+		lineColor = blurColor
+	}
+	return textColor, lineColor
+}
+
+func (m *Model) buildStyledBorder(
+	state string,
+	content string,
+	baseStyle lipgloss.Style,
+	componentWidth int,
+	alignment BorderAlignment,
+) string {
+	textColor, lineColor := m.setColorVariables(state)
+
+	styledContent := baseStyle.Foreground(textColor).Render(content)
+
+	contentWidth := lipgloss.Width(styledContent)
+	line := LineStyle.Foreground(lineColor).
+		Render(strings.Repeat("─", max(0, componentWidth-contentWidth)))
+
+	switch alignment {
+	case AlignHeader:
+		return lipgloss.JoinHorizontal(lipgloss.Left, styledContent, line)
+	case AlignFooter:
+		return lipgloss.JoinHorizontal(lipgloss.Left, line, styledContent)
+	default:
+		return ""
+	}
+}
+
+func (m *Model) mainMenuHeaderViewport(state string) string {
+	title := fmt.Sprintf("Spellbook: %s", utils.TruncatePath(m.pwd, 1))
+	return m.buildStyledBorder(
+		state,
+		title,
+		HeaderStyle,
+		m.viewportSpellBook.Width(),
+		AlignHeader,
+	)
+}
+
+func (m *Model) mainMenuFooterVierPort(state string) string {
+	info := fmt.Sprintf("%3.f%%", m.viewportSpellBook.ScrollPercent()*100)
+	return m.buildStyledBorder(
+		state,
+		info,
+		FooterStyle,
+		m.viewportSpellBook.Width(),
+		AlignFooter,
+	)
+}
+
+func (m *Model) mainMenuHeaderList(state string) string {
+	return m.buildStyledBorder(
+		state,
+		"Select an option",
+		HeaderStyle,
+		m.menuItems.Width(),
+		AlignHeader,
+	)
+}
+
+func (m *Model) mainMenuFooterList(state string) string {
+	return m.buildStyledBorder(
+		state,
+		"",
+		FooterStyle,
+		m.menuItems.Width(),
+		AlignFooter,
+	)
+}
 
 func (m Model) showProntMessage(availableHeightForMainContent int) string {
 	var prontMessage string
@@ -48,6 +151,7 @@ func (m *Model) View() string {
 	statusBarContent := m.StatusBar.Render()
 	helpView := lipgloss.NewStyle().Padding(0, 2).SetString(m.help.View(m.keys)).String()
 	printMessage := m.showProntMessage(m.availableHeight)
+	m.setAppStyles()
 
 	switch m.state {
 	case checkingSpellbook:
@@ -59,6 +163,10 @@ func (m *Model) View() string {
 	case spellbookLoaded:
 		s.WriteString(printMessage)
 	case ready:
+		var (
+			listElementState     = "blur"
+			viewportElementState = "blur"
+		)
 
 		glamourStyle := styles.DarkStyleConfig
 		renderer, _ := glamour.NewTermRenderer(
@@ -70,10 +178,36 @@ func (m *Model) View() string {
 
 		m.viewportSpellBook.SetContent(glamourContentStr)
 
+		switch m.focusedElement {
+		case listElement:
+			listElementState = "focus"
+		case viewportElement:
+			viewportElementState = "focus"
+		}
+
+		menuHeaderVpContent := m.mainMenuHeaderViewport(viewportElementState)
+		menuFooterVpContent := m.mainMenuFooterVierPort(viewportElementState)
+		extraContent := lipgloss.Height(menuHeaderVpContent + menuFooterVpContent)
+		m.recalculateSizes(WithExtraContent(extraContent))
+
+		rightSideContent := lipgloss.JoinVertical(
+			lipgloss.Left,
+			menuHeaderVpContent,
+			m.viewportSpellBook.View(),
+			menuFooterVpContent,
+		)
+
+		leftSideContent := lipgloss.JoinVertical(
+			lipgloss.Left,
+			m.mainMenuHeaderList(listElementState),
+			m.menuItems.View(),
+			m.mainMenuFooterList(listElementState),
+		)
+
 		stateView = lipgloss.JoinHorizontal(
 			lipgloss.Left,
-			m.menuItems.View(),
-			m.viewportSpellBook.View(),
+			leftSideContent,
+			rightSideContent,
 		)
 		s.WriteString(stateView)
 
@@ -201,15 +335,15 @@ func renderSpellbook(sb *Spellbook) (string, error) {
 	var md strings.Builder
 
 	// Title
-	md.WriteString(fmt.Sprintf("# %s\n\n", sb.Name))
+	// md.WriteString(fmt.Sprintf("# %s\n\n", sb.Name))
 
 	// Runes Section
-	md.WriteString("## Runes\n\n")
+	md.WriteString("# Runes\n\n")
 	if len(sb.Runes) == 0 {
 		md.WriteString("No runes found.\n\n")
 	} else {
 		for _, r := range sb.Runes {
-			md.WriteString(fmt.Sprintf("### %s\n", r.Name))
+			md.WriteString(fmt.Sprintf("## %s\n", r.Name))
 			md.WriteString(fmt.Sprintf("> %s\n\n", r.Description))
 			md.WriteString("```sh\n")
 			for _, cmd := range r.Commands {
