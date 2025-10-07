@@ -30,17 +30,18 @@ func viewPortKeys() KeyMap {
 		PgUp:        key.NewBinding(key.WithKeys("pgup"), key.WithHelp("pgup", "page up")),
 		PgDown:      key.NewBinding(key.WithKeys("pgdown"), key.WithHelp("pgdown", "page down")),
 		SwitchFocus: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "Toggle focus")),
-		Quit:        key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
+		Quit:        key.NewBinding(key.WithKeys("q"), key.WithHelp("q/ctrl+x", "quit")),
+		GlobalQuit:  key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "quit")),
 		Help:        key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 	}
 }
 
 func mainListKeys() KeyMap {
 	return KeyMap{
-		Up:          key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
-		Down:        key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
+		Up:          key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", "up")),
+		Down:        key.NewBinding(key.WithKeys("down"), key.WithHelp("↓", "down")),
 		Enter:       key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
-		Quit:        key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
+		Quit:        key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "quit")),
 		SwitchFocus: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "Toggle focus")),
 		GlobalQuit:  key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "quit")),
 		Help:        key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
