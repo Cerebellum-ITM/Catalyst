@@ -6,7 +6,9 @@ import (
 	"image/color"
 	"strings"
 
+	"catalyst/internal/app/components/core"
 	"catalyst/internal/ascii"
+	"catalyst/internal/types"
 	"catalyst/internal/utils"
 
 	"github.com/charmbracelet/glamour"
@@ -121,6 +123,63 @@ func (m *Model) mainMenuFooterList(state string) string {
 	)
 }
 
+func (m *Model) runesListHeader(state string) string {
+	return m.buildStyledBorder(
+		state,
+		"Runes",
+		HeaderStyle,
+		m.runesList.Width(),
+		AlignHeader,
+	)
+}
+
+func (m *Model) runesListFooter(state string) string {
+	return m.buildStyledBorder(
+		state,
+		"",
+		FooterStyle,
+		m.runesList.Width(),
+		AlignFooter,
+	)
+}
+
+func (m *Model) runeDetailHeader(state string) string {
+	title := "Rune Details"
+	if selectedItem, ok := m.runesList.SelectedItem().(core.RuneItem); ok {
+		title = selectedItem.Title()
+	}
+	return m.buildStyledBorder(
+		state,
+		title,
+		HeaderStyle,
+		m.viewportSpellBook.Width(),
+		AlignHeader,
+	)
+}
+
+func (m *Model) runeDetailFooter(state string) string {
+	info := fmt.Sprintf("%3.f%%", m.viewportSpellBook.ScrollPercent()*100)
+	return m.buildStyledBorder(
+		state,
+		info,
+		FooterStyle,
+		m.viewportSpellBook.Width(),
+		AlignFooter,
+	)
+}
+
+func formatRuneDetail(rune types.Rune) string {
+	var md strings.Builder
+	md.WriteString(fmt.Sprintf("## %s\n\n", rune.Name))
+	md.WriteString(fmt.Sprintf("> %s\n\n", rune.Description))
+	md.WriteString("```sh\n")
+	for _, cmd := range rune.Commands {
+		md.WriteString(fmt.Sprintf("%s\n", cmd))
+	}
+	md.WriteString("```\n")
+	return md.String()
+}
+
 func (m Model) showProntMessage(availableHeightForMainContent int) string {
 	var prontMessage string
 	asciiLogo := ascii.PrintLogo()
@@ -212,18 +271,48 @@ func (m *Model) View() string {
 		s.WriteString(stateView)
 
 	case showingRunes:
-		s.WriteString(fmt.Sprintf("Runes in %s:\n\n", m.pwd))
-		if len(m.spellbook.Runes) == 0 {
-			s.WriteString("No runes found.\n")
-		} else {
-			for i, r := range m.spellbook.Runes {
-				cursor := " "
-				if m.cursor == i {
-					cursor = ">"
-				}
-				s.WriteString(fmt.Sprintf("%s %s: %s\n", highlight.Render(cursor), r.Name, r.Description))
-			}
+		var (
+			listElementState     = "blur"
+			viewportElementState = "blur"
+		)
+
+		switch m.focusedElement {
+		case listElement:
+			listElementState = "focus"
+		case viewportElement:
+			viewportElementState = "focus"
 		}
+
+		// Since this view has headers and footers, we need to account for their height
+		runeListHeader := m.runesListHeader(listElementState)
+		runeListFooter := m.runesListFooter(listElementState)
+		runeDetailHeader := m.runeDetailHeader(viewportElementState)
+		runeDetailFooter := m.runeDetailFooter(viewportElementState)
+
+		// Calculate height for components, subtracting the borders
+		extraContentHeight := lipgloss.Height(runeListHeader) + lipgloss.Height(runeListFooter)
+		m.recalculateSizes(WithExtraContent(extraContentHeight))
+
+		leftSideContent := lipgloss.JoinVertical(
+			lipgloss.Left,
+			runeListHeader,
+			m.runesList.View(),
+			runeListFooter,
+		)
+
+		rightSideContent := lipgloss.JoinVertical(
+			lipgloss.Left,
+			runeDetailHeader,
+			m.viewportSpellBook.View(),
+			runeDetailFooter,
+		)
+
+		stateView = lipgloss.JoinHorizontal(
+			lipgloss.Left,
+			leftSideContent,
+			rightSideContent,
+		)
+		s.WriteString(stateView)
 
 	case creatingRune:
 		s.WriteString("Create a New Rune\n\n")

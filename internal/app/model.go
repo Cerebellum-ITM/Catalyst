@@ -15,6 +15,7 @@ import (
 	"catalyst/internal/local"
 	"catalyst/internal/ssh"
 	"catalyst/internal/utils"
+	"catalyst/internal/types"
 
 	"github.com/charmbracelet/bubbles/v2/help"
 	"github.com/charmbracelet/bubbles/v2/list"
@@ -91,6 +92,7 @@ type Model struct {
 	focusedElement    focusableElement
 	pwd               string // Current working directory (spellbook path)
 	menuItems         list.Model
+	runesList         list.Model
 	cursor            int
 	spellbook         *Spellbook // Our in-memory cache
 	viewportSpellBook viewport.Model
@@ -134,6 +136,7 @@ func NewModel(cfg *config.Config, db *db.Database, version string) Model {
 		state:             checkingSpellbook,
 		pwd:               pwd,
 		menuItems:         core.NewMainMenu(*theme),
+		runesList:         core.NewRunesList(*theme, []types.Rune{}),
 		inputs:            make([]textinput.Model, 3), // name, desc, cmds
 		focusIndex:        0,
 		Theme:             theme,
@@ -199,10 +202,18 @@ func (m *Model) recalculateSizes(options ...RecalcOption) {
 	availableHeightForMainContent := m.height - statusBarH - helpViewH - 2 - config.extraContent
 
 	// Set sizes for components
-	m.viewportSpellBook.SetWidth(m.width * 3 / 4)
-	m.viewportSpellBook.SetHeight(availableHeightForMainContent)
-	m.menuItems.SetWidth(m.width / 4)
-	m.menuItems.SetHeight(availableHeightForMainContent)
+	switch m.state {
+	case showingRunes:
+		m.runesList.SetWidth(m.width / 3)
+		m.runesList.SetHeight(availableHeightForMainContent)
+		m.viewportSpellBook.SetWidth(m.width * 2 / 3)
+		m.viewportSpellBook.SetHeight(availableHeightForMainContent)
+	default:
+		m.viewportSpellBook.SetWidth(m.width * 3 / 4)
+		m.viewportSpellBook.SetHeight(availableHeightForMainContent)
+		m.menuItems.SetWidth(m.width / 4)
+		m.menuItems.SetHeight(availableHeightForMainContent)
+	}
 	m.availableHeight = availableHeightForMainContent
 }
 
@@ -270,15 +281,15 @@ func (m *Model) createRuneCmd() tea.Msg {
 
 // executeRuneCmd runs the commands for a selected rune from the main list.
 func (m *Model) executeRuneCmd() tea.Msg {
-	if m.cursor < 0 || m.cursor >= len(m.spellbook.Runes) {
+	selectedItem, ok := m.runesList.SelectedItem().(core.RuneItem)
+	if !ok {
 		return errMsg{fmt.Errorf("invalid rune selection")}
 	}
-	selectedRune := m.spellbook.Runes[m.cursor]
-	return m.executeSpecificRuneCmd(selectedRune)()
+	return m.executeSpecificRuneCmd(selectedItem.Rune)()
 }
 
 // executeSpecificRuneCmd creates a tea.Cmd that saves and executes a specific rune.
-func (m *Model) executeSpecificRuneCmd(r Rune) tea.Cmd {
+func (m *Model) executeSpecificRuneCmd(r types.Rune) tea.Cmd {
 	return func() tea.Msg {
 		// Save to history first
 		if err := m.db.AddHistoryEntry(r.Name, m.spellbook.Name); err != nil {
@@ -342,11 +353,11 @@ func (m *Model) removeLoegCmd() tea.Msg {
 
 // updateRuneCmd sends the command to update an existing rune.
 func (m *Model) updateRuneCmd() tea.Msg {
-	// ... (build command as before)
-	if m.cursor < 0 || m.cursor >= len(m.spellbook.Runes) {
+	selectedItem, ok := m.runesList.SelectedItem().(core.RuneItem)
+	if !ok {
 		return errMsg{fmt.Errorf("invalid rune selection for update")}
 	}
-	selectedRune := m.spellbook.Runes[m.cursor]
+	selectedRune := selectedItem.Rune
 	originalName := selectedRune.Name
 
 	newName := m.inputs[0].Value()
@@ -389,11 +400,11 @@ func (m *Model) updateRuneCmd() tea.Msg {
 
 // deleteRuneCmd sends the command to delete a rune.
 func (m *Model) deleteRuneCmd() tea.Msg {
-	if m.cursor < 0 || m.cursor >= len(m.spellbook.Runes) {
+	selectedItem, ok := m.runesList.SelectedItem().(core.RuneItem)
+	if !ok {
 		return errMsg{fmt.Errorf("invalid rune selection for delete")}
 	}
-	runeName := m.spellbook.Runes[m.cursor].Name
-	// ... (build command as before)
+	runeName := selectedItem.Rune.Name
 	cmd := fmt.Sprintf("delete-rune %q %q", m.pwd, runeName)
 	_, err := m.sshClient.Command(cmd)
 	if err != nil {

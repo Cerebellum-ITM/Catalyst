@@ -49,14 +49,15 @@ func mainListKeys() KeyMap {
 
 func viewingRunesKeys() KeyMap {
 	return KeyMap{
-		Up:         key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
-		Down:       key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
-		Enter:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "run")),
-		Edit:       key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
-		Delete:     key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete")),
-		Esc:        key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
-		GlobalQuit: key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "quit")),
-		Help:       key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+		Up:          key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
+		Down:        key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
+		Enter:       key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "run")),
+		Edit:        key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
+		Delete:      key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete")),
+		SwitchFocus: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "Toggle focus")),
+		Esc:         key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
+		GlobalQuit:  key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "quit")),
+		Help:        key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 	}
 }
 

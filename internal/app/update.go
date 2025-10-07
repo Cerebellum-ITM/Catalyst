@@ -1,8 +1,12 @@
 package app
 
 import (
+	"catalyst/internal/types"
 	"sort"
 	"time"
+
+	"github.com/charmbracelet/glamour"
+
 
 	"catalyst/internal/app/components/core"
 	"catalyst/internal/app/components/statusbar"
@@ -83,6 +87,13 @@ func (m *Model) changeFocusedElement() {
 		switch m.focusedElement {
 		case listElement:
 			m.keys = mainListKeys()
+		case viewportElement:
+			m.keys = viewPortKeys()
+		}
+	case showingRunes:
+		switch m.focusedElement {
+		case listElement:
+			m.keys = viewingRunesKeys()
 		case viewportElement:
 			m.keys = viewPortKeys()
 		}
@@ -200,9 +211,27 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			if item, ok := selectedItem.(core.MenuItem); ok {
 				switch item.Value() {
 				case 0: // Get Runes
+					// Populate the runes list with items from the spellbook
+					items := make([]list.Item, len(m.spellbook.Runes))
+					for i, r := range m.spellbook.Runes {
+						items[i] = core.RuneItem{Rune: r}
+					}
+					m.runesList.SetItems(items)
+
 					m.state = showingRunes
 					m.keys = viewingRunesKeys()
 					m.StatusBar.Content = "Viewing Runes"
+
+					// Initialize viewport with the first rune's details
+					if len(m.spellbook.Runes) > 0 {
+						md := formatRuneDetail(m.spellbook.Runes[0])
+						rendered, _ := glamour.Render(md, "dark")
+						m.viewportSpellBook.SetContent(rendered)
+					}
+					
+					// Recalculate sizes for the new layout
+					m.recalculateSizes()
+					
 					return m, nil
 				case 1: // Create Rune
 					m.state = creatingRune
@@ -256,39 +285,55 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 // updateShowingRunes handles updates when displaying the list of runes.
 func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if key.Matches(msg, m.keys.SwitchFocus) {
+			m.changeFocusedElement()
+			return m, nil
+		}
+
+		// When the viewport is focused, handle its scrolling.
+		if m.focusedElement == viewportElement {
+			if key.Matches(msg, m.keys.Esc) || key.Matches(msg, m.keys.SwitchFocus) {
+				m.focusedElement = listElement
+				m.keys = viewingRunesKeys()
+				return m, nil
+			}
+			m.viewportSpellBook, cmd = m.viewportSpellBook.Update(msg)
+			cmds = append(cmds, cmd)
+			return m, tea.Batch(cmds...)
+		}
+
+		// Otherwise, handle list navigation and actions.
 		switch {
 		case key.Matches(msg, m.keys.Esc):
 			m.state = ready
 			m.keys = mainListKeys()
+			m.focusedElement = listElement // Reset focus
 			m.StatusBar.Content = m.SpellbookString
-			m.StatusBar.Level = statusbar.LevelInfo
-			m.cursor = 0
 			return m, nil
-		case key.Matches(msg, m.keys.Up):
-			if m.cursor > 0 {
-				m.cursor--
-			}
-		case key.Matches(msg, m.keys.Down):
-			if m.cursor < len(m.spellbook.Runes)-1 {
-				m.cursor++
-			}
+
 		case key.Matches(msg, m.keys.Enter):
-			if len(m.spellbook.Runes) > 0 {
-				m.previousState = showingRunes
-				m.state = executingRune
-				m.keys = executingRuneKeys()
-				m.StatusBar.Content = "Executing rune..."
-				m.StatusBar.Level = statusbar.LevelInfo
-				return m, tea.Batch(m.StatusBar.StartSpinner(), m.executeRuneCmd)
+			selectedItem, ok := m.runesList.SelectedItem().(core.RuneItem)
+			if !ok {
+				return m, nil
 			}
+			m.previousState = showingRunes
+			m.state = executingRune
+			m.keys = executingRuneKeys()
+			m.StatusBar.Content = "Executing rune..."
+			return m, tea.Batch(m.StatusBar.StartSpinner(), m.executeSpecificRuneCmd(selectedItem.Rune))
+
 		case key.Matches(msg, m.keys.Delete):
 			if len(m.spellbook.Runes) > 0 {
 				m.StatusBar.Content = "Deleting rune..."
 				m.StatusBar.Level = statusbar.LevelWarning
 				return m, tea.Batch(m.StatusBar.StartSpinner(), m.deleteRuneCmd)
 			}
+
 		case key.Matches(msg, m.keys.Edit):
 			if len(m.spellbook.Runes) > 0 {
 				m.state = editingRune
@@ -297,8 +342,12 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				m.StatusBar.Level = statusbar.LevelInfo
 				m.focusIndex = 0
 
-				selectedRune := m.spellbook.Runes[m.cursor]
-
+				selectedRuneItem, ok := m.runesList.SelectedItem().(core.RuneItem)
+				if !ok {
+					return m, nil
+				}
+				selectedRune := selectedRuneItem.Rune
+				
 				m.inputs = make([]textinput.Model, 2+len(selectedRune.Commands))
 
 				t := textinput.New()
@@ -321,27 +370,39 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				}
 				return m, textinput.Blink
 			}
+
+		// ... other key matches like delete, edit ...
 		}
-	case gotSpellbookMsg:
+	
+	case gotSpellbookMsg: // This case is now primarily for refreshing the data
 		m.spellbook = &msg.spellbook
-		m.state = showingRunes
-		m.keys = viewingRunesKeys()
-		m.cursor = 0
-		m.StatusBar.StopSpinner()
-		m.StatusBar.Content = "Updated runes list"
-		m.StatusBar.Level = statusbar.LevelSuccess
-		return m, clearStatusCmd()
-	case runeDeletedMsg:
-		return m, m.getSpellbookContentCmd
-	case errMsg:
-		m.err = msg.err
-		m.state = errState
-		m.StatusBar.StopSpinner()
-		m.StatusBar.Content = "Error: " + msg.err.Error()
-		m.StatusBar.Level = statusbar.LevelError
-		return m, clearStatusCmd()
+		
+		items := make([]list.Item, len(m.spellbook.Runes))
+		for i, r := range m.spellbook.Runes {
+			items[i] = core.RuneItem{Rune: r}
+		}
+		m.runesList.SetItems(items)
+
+		if len(m.spellbook.Runes) > 0 {
+			md := formatRuneDetail(m.spellbook.Runes[0])
+			rendered, _ := glamour.Render(md, "dark")
+			m.viewportSpellBook.SetContent(rendered)
+		}
+		return m, nil // No need for other state changes here
 	}
-	return m, nil
+
+	// Update the list and get commands
+	m.runesList, cmd = m.runesList.Update(msg)
+	cmds = append(cmds, cmd)
+
+	// When the selected item changes, update the viewport
+	if selectedItem, ok := m.runesList.SelectedItem().(core.RuneItem); ok {
+		md := formatRuneDetail(selectedItem.Rune)
+		rendered, _ := glamour.Render(md, "dark")
+		m.viewportSpellBook.SetContent(rendered)
+	}
+
+	return m, tea.Batch(cmds...)
 }
 
 // updateCreatingRune handles updates for the rune creation form.
@@ -624,7 +685,7 @@ func updateShowingHistory(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Enter):
 			if m.cursor >= 0 && m.cursor < len(m.history) {
 				selectedEntry := m.history[m.cursor]
-				var selectedRune *Rune
+				var selectedRune *types.Rune
 				for i := range m.spellbook.Runes {
 					if m.spellbook.Runes[i].Name == selectedEntry.RuneID {
 						selectedRune = &m.spellbook.Runes[i]
