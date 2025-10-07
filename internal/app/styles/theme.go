@@ -101,7 +101,7 @@ func (t *Theme) buildStyles() *Styles {
 				Color:      t.Accent,
 				Shape:      tea.CursorBar,
 				Blink:      true,
-				BlinkSpeed: time.Millisecond * 250,
+				BlinkSpeed: time.Millisecond * 500,
 			},
 		},
 		Help: help.Styles{

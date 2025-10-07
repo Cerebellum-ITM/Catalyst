@@ -151,18 +151,19 @@ func NewModel(cfg *config.Config, db *db.Database, version string) Model {
 	// Initialize text inputs for the create rune form
 	var t core.CustomTextInput
 	for i := range m.inputs {
-		t = core.NewTextInput(*theme)
-		t.Model.CharLimit = 128
+		t = core.NewTextInput("", *theme)
 
 		switch i {
 		case 0:
+			t.Name = "Rune Name"
 			t.Model.Placeholder = "Rune Name"
 			t.Model.Focus()
 		case 1:
+			t.Name = "Description"
 			t.Model.Placeholder = "Description"
 		case 2:
+			t.Name = "Cmd"
 			t.Model.Placeholder = "Commands (semicolon-separated)"
-			t.Model.CharLimit = 256
 		}
 		m.inputs[i] = t
 	}

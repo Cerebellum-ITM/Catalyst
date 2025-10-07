@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"sort"
 	"time"
 
@@ -264,8 +265,8 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					m.inputs = make([]core.CustomTextInput, 3) // name, desc, one command
 					var t core.CustomTextInput
 					for i := range m.inputs {
-						t = core.NewTextInput(*m.Theme)
-						t.Model.CharLimit = 256
+						textinputCmdName := fmt.Sprintf("Cmd %d", i)
+						t = core.NewTextInput(textinputCmdName, *m.Theme)
 						switch i {
 						case 0:
 							t.Model.Placeholder = "Rune Name"
@@ -384,22 +385,25 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				m.inputs = make([]core.CustomTextInput, 2+len(selectedRune.Commands))
 
 				var t core.CustomTextInput
-				t = core.NewTextInput(*m.Theme)
+				t = core.NewTextInput("", *m.Theme)
+				t.Name = "Rune Name"
 				t.Model.Placeholder = "Rune Name"
 				t.Model.SetValue(selectedRune.Name)
 				t.Model.Focus()
 				m.inputs[0] = t
 
-				t = core.NewTextInput(*m.Theme)
+				t = core.NewTextInput("", *m.Theme)
+				t.Name = "Description"
+
 				t.Model.Placeholder = "Description"
 				t.Model.SetValue(selectedRune.Description)
 				m.inputs[1] = t
 
 				for i, cmd := range selectedRune.Commands {
-					t = core.NewTextInput(*m.Theme)
+					textinputCmdName := fmt.Sprintf("Cmd %d", i+1)
+					t = core.NewTextInput(textinputCmdName, *m.Theme)
 					t.Model.Placeholder = "Command"
 					t.Model.SetValue(cmd)
-					t.Model.CharLimit = 256
 					m.inputs[2+i] = t
 				}
 				return m, textinput.Blink
@@ -472,91 +476,79 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
 
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if key.Matches(msg, m.keys.SwitchFocus) {
-			m.changeFocusedElement()
-			return m, nil
-		}
+	// First, allow the focused input to process the message.
+	// This is crucial for typing and cursor blinking.
+	cmd = m.updateInputs(msg)
+	cmds = append(cmds, cmd)
 
-		if m.focusedElement == viewportElement {
-			m.formViewport, cmd = m.formViewport.Update(msg)
-			cmds = append(cmds, cmd)
-			return m, tea.Batch(cmds...)
-		}
-
-		// Handle form logic
+	// Then, handle navigation and actions based on key presses.
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch {
-		case key.Matches(msg, m.keys.Esc):
-			m.state = showingRunes // Go back to the list
+		case key.Matches(keyMsg, m.keys.Esc):
+			m.state = showingRunes
 			m.keys = viewingRunesKeys()
 			return m, nil
 
-		case key.Matches(msg, m.keys.Up):
-			// Move focus to the next field
+		case key.Matches(keyMsg, m.keys.Up):
 			m.focusIndex--
 			if m.focusIndex < 0 {
 				m.focusIndex = len(m.inputs)
 			}
-			cmds := make([]tea.Cmd, len(m.inputs))
+			navCmds := make([]tea.Cmd, len(m.inputs))
 			for i := range m.inputs {
 				if i == m.focusIndex {
-					cmds[i] = m.inputs[i].Focus()
+					navCmds[i] = m.inputs[i].Focus()
 				} else {
 					m.inputs[i].Blur()
 				}
 			}
-			return m, tea.Batch(cmds...)
+			cmds = append(cmds, tea.Batch(navCmds...))
 
-		case key.Matches(msg, m.keys.Down):
-			// Move focus to the next field
+		case key.Matches(keyMsg, m.keys.Down):
 			m.focusIndex++
 			if m.focusIndex > len(m.inputs) {
 				m.focusIndex = 0
 			}
-			cmds := make([]tea.Cmd, len(m.inputs))
+			navCmds := make([]tea.Cmd, len(m.inputs))
 			for i := range m.inputs {
 				if i == m.focusIndex {
-					cmds[i] = m.inputs[i].Focus()
+					navCmds[i] = m.inputs[i].Focus()
 				} else {
 					m.inputs[i].Blur()
 				}
 			}
-			return m, tea.Batch(cmds...)
+			cmds = append(cmds, tea.Batch(navCmds...))
 
-		case key.Matches(msg, m.keys.AddCommand):
-			// In command fields (index 2+), creates a new field
+		case key.Matches(keyMsg, m.keys.AddCommand):
 			if m.focusIndex >= 2 {
-				newInput := core.NewTextInput(*m.Theme)
+				textinputCmdName := fmt.Sprintf("Cmd %d", (len(m.inputs) - 1))
+				newInput := core.NewTextInput(textinputCmdName, *m.Theme)
 				newInput.Model.Placeholder = "Command"
 				newInput.Model.Focus()
 				newIndex := m.focusIndex + 1
-				m.inputs = append(m.inputs[:newIndex], append([]core.CustomTextInput{newInput}, m.inputs[newIndex:]...)...)
+				m.inputs = append(
+					m.inputs[:newIndex],
+					append([]core.CustomTextInput{newInput}, m.inputs[newIndex:]...)...)
 				m.inputs[m.focusIndex].Model.Blur()
 				m.focusIndex = newIndex
-				return m, textinput.Blink
+				cmds = append(cmds, textinput.Blink)
 			}
 
-		case key.Matches(msg, m.keys.Enter):
+		case key.Matches(keyMsg, m.keys.Enter):
 			if m.focusIndex == len(m.inputs) {
-				// Determine if we are creating or updating
 				isUpdating := m.inputs[0].Value() != ""
-
 				if isUpdating {
 					m.StatusBar.Content = "Updating rune..."
-					return m, tea.Batch(m.StatusBar.StartSpinner(), m.updateRuneCmd)
+					cmds = append(cmds, tea.Batch(m.StatusBar.StartSpinner(), m.updateRuneCmd))
+				} else {
+					m.StatusBar.Content = "Creating rune..."
+					cmds = append(cmds, tea.Batch(m.StatusBar.StartSpinner(), m.createRuneCmd))
 				}
-				m.StatusBar.Content = "Creating rune..."
-				return m, tea.Batch(m.StatusBar.StartSpinner(), m.createRuneCmd)
 			}
 		}
 	}
 
-	// Update text inputs
-	cmd = m.updateInputs(msg)
-	cmds = append(cmds, cmd)
-
-	// Update preview viewport
+	// Update the preview viewport regardless of the message type
 	tempRune := types.Rune{
 		Name:        m.inputs[0].Value(),
 		Description: m.inputs[1].Value(),
@@ -628,8 +620,8 @@ func updateShowingLoegs(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 			var t core.CustomTextInput
 			for i := range m.inputs {
-				t = core.NewTextInput(*m.Theme)
-				t.Model.CharLimit = 128
+				textinputLoegName := fmt.Sprintf("Loeg %d", i+1)
+				t = core.NewTextInput(textinputLoegName, *m.Theme)
 				switch i {
 				case 0:
 					t.Model.Placeholder = "KEY"

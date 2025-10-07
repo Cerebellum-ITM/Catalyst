@@ -1,6 +1,8 @@
 package core
 
 import (
+	"fmt"
+
 	"catalyst/internal/app/styles"
 
 	"github.com/charmbracelet/bubbles/v2/textinput"
@@ -10,16 +12,17 @@ import (
 // CustomTextInput wraps textinput.Model to provide custom styling.
 type CustomTextInput struct {
 	textinput.Model
+	Name  string
 	Theme styles.Theme
 }
 
 // NewTextInput creates a new CustomTextInput.
-func NewTextInput(theme styles.Theme) CustomTextInput {
+func NewTextInput(Name string, theme styles.Theme) CustomTextInput {
 	ti := textinput.New()
 	ti.Placeholder = "Enter text..."
-	ti.VirtualCursor = true
-	ti.Styles = theme.AppStyles().Textinput
+	ti.SetStyles(theme.AppStyles().Textinput)
 	return CustomTextInput{
+		Name:  Name,
 		Model: ti,
 		Theme: theme,
 	}
@@ -34,9 +37,9 @@ func (cti CustomTextInput) Update(msg tea.Msg) (CustomTextInput, tea.Cmd) {
 // View applies custom logic before rendering.
 func (cti CustomTextInput) View() string {
 	if cti.Focused() {
-		cti.Prompt = "❯ "
+		cti.Prompt = fmt.Sprintf("❯ %s: ", cti.Name)
 	} else {
-		cti.Prompt = "  "
+		cti.Prompt = fmt.Sprintf("  %s: ", cti.Name)
 	}
 	return cti.Model.View()
 }

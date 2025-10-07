@@ -172,7 +172,7 @@ func (m *Model) formHeader(state string) string {
 		state,
 		title,
 		HeaderStyle,
-		(m.width/2), // Assuming form takes half the width
+		(m.width / 2), // Assuming form takes half the width
 		AlignHeader,
 	)
 }
@@ -182,7 +182,7 @@ func (m *Model) formFooter(state string) string {
 		state,
 		"",
 		FooterStyle,
-		(m.width/2),
+		(m.width / 2),
 		AlignFooter,
 	)
 }
@@ -192,7 +192,7 @@ func (m *Model) previewHeader(state string) string {
 		state,
 		"Live Preview",
 		HeaderStyle,
-		(m.width/2),
+		(m.width / 2),
 		AlignHeader,
 	)
 }
@@ -203,13 +203,14 @@ func (m *Model) previewFooter(state string) string {
 		state,
 		info,
 		FooterStyle,
-		(m.width/2),
+		(m.width / 2),
 		AlignFooter,
 	)
 }
 
 func formatRuneDetail(rune types.Rune) string {
 	var md strings.Builder
+	md.WriteString(fmt.Sprintf("# %s\n", rune.Name))
 	md.WriteString(fmt.Sprintf("# %s\n", "Description"))
 	md.WriteString(fmt.Sprintf("> %s\n\n", rune.Description))
 	md.WriteString("```sh\n")
@@ -372,7 +373,7 @@ func (m *Model) View() string {
 		for i := range m.inputs {
 			formBuilder.WriteString(m.inputs[i].View() + "\n")
 		}
-		submitButton := "Submit"
+		submitButton := "  Submit"
 		if m.focusIndex == len(m.inputs) {
 			submitButton = highlight.Render(submitButton)
 		}
