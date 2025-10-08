@@ -63,6 +63,7 @@ type (
 	gotHistoryMsg   struct{ history []db.HistoryEntry }
 	noChangesMsg    struct{} // Message to indicate no changes were made
 	clearStatusMsg  struct{} // Message to clear the status bar after a delay
+	ClosePopupMsg   core.ClosePopupMsg
 	errMsg          struct{ err error }
 )
 
@@ -104,6 +105,7 @@ type Model struct {
 	output            string // To store output from executed runes
 	err               error
 	isLocked          bool
+	popup             *core.PopupModel
 	width             int
 	height            int
 	StatusBar         statusbar.StatusBar

@@ -25,6 +25,25 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.StatusBar, cmd = m.StatusBar.Update(msg)
 	cmds = append(cmds, cmd)
 
+	// Handle popup closing and other global messages first
+	switch msg.(type) {
+	case core.ClosePopupMsg:
+		m.popup = nil
+		return m, nil
+	}
+
+	// If a popup is active, forward messages to it
+	if m.popup != nil {
+		var popupModel tea.Model
+		popupModel, cmd = m.popup.Update(msg)
+		if newPopupModel, ok := popupModel.(*core.PopupModel); ok {
+			m.popup = newPopupModel
+		} else {
+			m.popup = nil
+		}
+		return m, cmd
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -59,6 +78,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.state = ready
 		}
 		return m, noDelayClearStatusCmd()
+	case core.ClosePopupMsg:
+		m.popup = nil
+		return m, nil
 	}
 
 	switch m.state {
@@ -368,10 +390,18 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, m.keys.Delete):
 			if len(m.spellbook.Runes) > 0 {
-				m.isLocked = true
-				m.StatusBar.Content = "Deleting rune..."
-				m.StatusBar.Level = statusbar.LevelWarning
-				return m, tea.Batch(m.StatusBar.StartSpinner(), m.deleteRuneCmd)
+				selectedItem, ok := m.runesList.SelectedItem().(core.RuneItem)
+				if !ok {
+					return m, nil
+				}
+				title := "Confirm Deletion"
+				message := fmt.Sprintf("Are you sure you want to delete the rune '%s'?", selectedItem.Rune.Name)
+				confirmCmd := func() tea.Msg {
+					m.isLocked = true
+					return m.deleteRuneCmd()
+				}
+				popup := core.NewPopup(title, message, confirmCmd, m.Theme, m.width, m.height)
+				m.popup = &popup
 			}
 
 		case key.Matches(msg, m.keys.Edit):
@@ -678,10 +708,15 @@ func updateShowingLoegs(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			}
 		case key.Matches(msg, m.keys.Delete):
 			if len(m.loegKeys) > 0 {
-				m.isLocked = true
-				m.StatusBar.Content = "Deleting loeg..."
-				m.StatusBar.Level = statusbar.LevelWarning
-				return m, tea.Batch(m.StatusBar.StartSpinner(), m.removeLoegCmd)
+				key := m.loegKeys[m.cursor]
+				title := "Confirm Deletion"
+				message := fmt.Sprintf("Are you sure you want to delete the loeg '%s'?", key)
+				confirmCmd := func() tea.Msg {
+					m.isLocked = true
+					return m.removeLoegCmd()
+				}
+				popup := core.NewPopup(title, message, confirmCmd, m.Theme, m.width, m.height)
+				m.popup = &popup
 			}
 		case key.Matches(msg, m.keys.New):
 			m.state = creatingLoeg

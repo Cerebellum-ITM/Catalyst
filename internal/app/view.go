@@ -497,6 +497,16 @@ func (m *Model) View() string {
 	mainLayer := lipgloss.NewLayer(mainContent)
 	canvas := lipgloss.NewCanvas(mainLayer)
 
+	if m.popup != nil {
+		popupView := m.popup.View()
+		popupWidth := lipgloss.Width(popupView)
+		popupHeight := lipgloss.Height(popupView)
+		startX := (m.width - popupWidth) / 2
+		startY := (m.height - popupHeight) / 2
+		popupLayer := lipgloss.NewLayer(popupView).X(startX).Y(startY)
+		canvas = lipgloss.NewCanvas(mainLayer, popupLayer)
+	}
+
 	return canvas.Render()
 }
 
