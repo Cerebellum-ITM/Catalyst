@@ -560,6 +560,22 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				m.focusIndex = newIndex
 				cmds = append(cmds, textinput.Blink)
 			}
+		case key.Matches(keyMsg, m.keys.RemoveCommand):
+			if m.focusIndex >= 2 && len(m.inputs) > 3 {
+				m.inputs = append(m.inputs[:m.focusIndex], m.inputs[m.focusIndex+1:]...)
+				if m.focusIndex >= len(m.inputs) {
+					m.focusIndex = len(m.inputs) - 1
+				}
+				for i, input := range m.inputs {
+					if i >= 2 {
+						textinputCmdName := fmt.Sprintf("Cmd %d", i-1)
+						input.Name = textinputCmdName
+						m.inputs[i] = input
+					}
+				}
+				m.inputs[m.focusIndex].Focus()
+				cmds = append(cmds, textinput.Blink)
+			}
 
 		case key.Matches(keyMsg, m.keys.Enter):
 			if m.focusIndex == len(m.inputs) {

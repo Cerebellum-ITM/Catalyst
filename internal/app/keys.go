@@ -26,6 +26,7 @@ type KeyMap struct {
 	ClearFilter key.Binding
 	NextField   key.Binding
 	AddCommand  key.Binding
+	RemoveCommand key.Binding
 }
 
 func viewPortKeys() KeyMap {
@@ -92,6 +93,10 @@ func formKeys() KeyMap {
 			key.WithKeys("ctrl+a"),
 			key.WithHelp("ctrl+a", "Add cmd"),
 		),
+		RemoveCommand: key.NewBinding(
+			key.WithKeys("ctrl+r"),
+			key.WithHelp("ctrl+r", "Remove cmd"),
+		),
 		Up:          key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", "previous field")),
 		Down:        key.NewBinding(key.WithKeys("down"), key.WithHelp("↓", "next field")),
 		Esc:         key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
@@ -120,6 +125,9 @@ func (k KeyMap) ShortHelp() []key.Binding {
 	}
 	if k.AddCommand.Enabled() {
 		b = append(b, k.AddCommand)
+	}
+	if k.RemoveCommand.Enabled() {
+		b = append(b, k.RemoveCommand)
 	}
 	if k.Enter.Enabled() {
 		b = append(b, k.Enter)
