@@ -20,13 +20,14 @@ type KeyMap struct {
 	PgDown key.Binding
 
 	// Rune specific
-	Edit        key.Binding
-	Delete      key.Binding
-	New         key.Binding
-	ClearFilter key.Binding
-	NextField   key.Binding
-	AddCommand  key.Binding
+	Edit          key.Binding
+	Delete        key.Binding
+	New           key.Binding
+	ClearFilter   key.Binding
+	NextField     key.Binding
+	AddCommand    key.Binding
 	RemoveCommand key.Binding
+	submit        key.Binding
 }
 
 func viewPortKeys() KeyMap {
@@ -88,7 +89,11 @@ func viewingLoegsKeys() KeyMap {
 
 func formKeys() KeyMap {
 	return KeyMap{
-		Enter: key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "submit")),
+		Enter: key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "enter")),
+		submit: key.NewBinding(
+			key.WithKeys("shift+enter"),
+			key.WithHelp("shift+enter", "submit form"),
+		),
 		AddCommand: key.NewBinding(
 			key.WithKeys("ctrl+a"),
 			key.WithHelp("ctrl+a", "Add cmd"),
@@ -97,7 +102,10 @@ func formKeys() KeyMap {
 			key.WithKeys("ctrl+r"),
 			key.WithHelp("ctrl+r", "Remove cmd"),
 		),
-		Up:          key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", "previous field")),
+		Up: key.NewBinding(
+			key.WithKeys("up"),
+			key.WithHelp("↑", "previous field"),
+		),
 		Down:        key.NewBinding(key.WithKeys("down"), key.WithHelp("↓", "next field")),
 		Esc:         key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel")),
 		SwitchFocus: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "Toggle focus")),
@@ -137,9 +145,6 @@ func (k KeyMap) ShortHelp() []key.Binding {
 	}
 	if k.PgUp.Enabled() {
 		b = append(b, k.PgUp)
-	}
-	if k.PgDown.Enabled() {
-		b = append(b, k.PgDown)
 	}
 	if k.New.Enabled() {
 		b = append(b, k.New)

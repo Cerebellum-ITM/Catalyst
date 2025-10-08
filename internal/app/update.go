@@ -481,6 +481,17 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
 
+	handleSubmit := func() {
+		isUpdating := m.previousState == showingRunes
+		if isUpdating {
+			m.StatusBar.Content = "Updating rune..."
+			cmds = append(cmds, tea.Batch(m.StatusBar.StartSpinner(), m.updateRuneCmd))
+		} else {
+			m.StatusBar.Content = "Creating rune..."
+			cmds = append(cmds, tea.Batch(m.StatusBar.StartSpinner(), m.createRuneCmd))
+		}
+	}
+
 	switch msg := msg.(type) {
 	case gotSpellbookMsg:
 		m.spellbook = &msg.spellbook
@@ -587,15 +598,11 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 		case key.Matches(keyMsg, m.keys.Enter):
 			if m.focusIndex == len(m.inputs) {
-				isUpdating := m.previousState == showingRunes
-				if isUpdating {
-					m.StatusBar.Content = "Updating rune..."
-					cmds = append(cmds, tea.Batch(m.StatusBar.StartSpinner(), m.updateRuneCmd))
-				} else {
-					m.StatusBar.Content = "Creating rune..."
-					cmds = append(cmds, tea.Batch(m.StatusBar.StartSpinner(), m.createRuneCmd))
-				}
+				handleSubmit()
 			}
+		case key.Matches(keyMsg, m.keys.submit):
+			m.focusIndex = len(m.inputs)
+			handleSubmit()
 		}
 	}
 
