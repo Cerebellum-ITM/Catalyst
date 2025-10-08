@@ -255,6 +255,8 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					m.state = editingRune
 					m.focusedElement = formElement
 					m.keys = formKeys()
+					m.keys.AddCommand.SetEnabled(false)
+					m.keys.RemoveCommand.SetEnabled(false)
 					m.StatusBar.Content = "Creating a new Rune"
 
 					// Clear inputs for new rune entry
@@ -367,6 +369,8 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				m.previousState = m.state
 				m.state = editingRune
 				m.keys = formKeys()
+				m.keys.AddCommand.SetEnabled(false)
+				m.keys.RemoveCommand.SetEnabled(false)
 				m.StatusBar.Content = "Editing rune"
 				m.StatusBar.Level = statusbar.LevelInfo
 				m.focusIndex = 0
@@ -521,6 +525,8 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			if m.focusIndex < 0 {
 				m.focusIndex = len(m.inputs)
 			}
+			m.keys.AddCommand.SetEnabled(m.focusIndex >= 2)
+			m.keys.RemoveCommand.SetEnabled(m.focusIndex >= 2)
 			navCmds := make([]tea.Cmd, len(m.inputs))
 			for i := range m.inputs {
 				if i == m.focusIndex {
@@ -536,6 +542,8 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			if m.focusIndex > len(m.inputs) {
 				m.focusIndex = 0
 			}
+			m.keys.AddCommand.SetEnabled(m.focusIndex >= 2)
+			m.keys.RemoveCommand.SetEnabled(m.focusIndex >= 2)
 			navCmds := make([]tea.Cmd, len(m.inputs))
 			for i := range m.inputs {
 				if i == m.focusIndex {
