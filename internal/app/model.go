@@ -62,10 +62,17 @@ type (
 	runeDeletedMsg  struct{}
 	gotHistoryMsg   struct{ history []db.HistoryEntry }
 	noChangesMsg    struct{} // Message to indicate no changes were made
-	clearStatusMsg  struct{} // Message to clear the status bar after a delay
-	ClosePopupMsg   core.ClosePopupMsg
-	errMsg          struct{ err error }
+	clearStatusMsg    struct{}
+	ClosePopupMsg     core.ClosePopupMsg
+	errMsg            struct{ err error }
 )
+
+type ProgressUpdateMsg struct {
+	Percent float64
+	LogLine string
+}
+
+type HideLockScreenMsg struct{}
 
 // Command to clear the status bar after a delay
 func clearStatusCmd() tea.Cmd {
@@ -104,7 +111,7 @@ type Model struct {
 	focusIndex        int
 	output            string // To store output from executed runes
 	err               error
-	isLocked          bool
+	lockScreen        *core.LockScreenModel
 	popup             *core.PopupModel
 	width             int
 	height            int

@@ -30,6 +30,28 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case core.ClosePopupMsg:
 		m.popup = nil
 		return m, nil
+	case HideLockScreenMsg:
+		m.lockScreen = nil
+		return m, nil
+	}
+
+	// If a lock screen is active, we only forward specific messages to it.
+	// Other messages, especially those indicating completion (gotSpellbookMsg, errMsg),
+	// should be processed by the main update logic to close the lock screen.
+	if m.lockScreen != nil {
+		switch msg.(type) {
+		case tea.WindowSizeMsg, core.ProgressUpdateMsg, core.FrameMsg:
+			var lockScreenModel tea.Model
+			lockScreenModel, cmd = m.lockScreen.Update(msg)
+			if newLockScreenModel, ok := lockScreenModel.(*core.LockScreenModel); ok {
+				m.lockScreen = newLockScreenModel
+			} else {
+				// Handle the case where the type assertion fails, perhaps by logging an error
+				// or setting lockScreen to nil, depending on desired behavior.
+				m.lockScreen = nil
+			}
+			return m, cmd
+		}
 	}
 
 	// If a popup is active, forward messages to it
@@ -52,13 +74,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.recalculateSizes()
 		return m, nil
 	case tea.KeyMsg:
-		if m.isLocked {
-			// If locked, only allow quitting
-			if key.Matches(msg, m.keys.GlobalQuit) {
-				return m, tea.Quit
-			}
-			return m, nil
-		}
 		if m.state == spellbookLoaded {
 			m.state = ready
 			return m, noDelayClearStatusCmd()
@@ -190,6 +205,22 @@ func updateInitial(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		utils.ResetListFilterState(&m.menuItems)
 		return m, continueToReadyCmd()
 	case errMsg:
+		finalMsg := "An error occurred"
+		if msg.err != nil {
+			finalMsg = msg.err.Error()
+		}
+
+		if m.lockScreen != nil {
+			return m, tea.Sequence(
+				func() tea.Msg {
+					return ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
+				},
+				tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
+					return HideLockScreenMsg{}
+				}),
+			)
+		}
+
 		if msg.err == nil { // This means the spellbook doesn't exist, time to create it
 			m.state = creatingSpellbook
 			m.StatusBar.Content = "Spellbook not found creating a new one...."
@@ -222,6 +253,18 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 	case gotSpellbookMsg: // Centralized update path
+		finalMsg := "Spellbook updated successfully"
+		// If the lock screen is active, it means this is the result of an async operation.
+		if m.lockScreen != nil {
+			return m, tea.Sequence(
+				func() tea.Msg {
+					return ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
+				},
+				tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
+					return HideLockScreenMsg{}
+				}),
+			)
+		}
 		m.spellbook = &msg.spellbook
 		m.state = ready
 		m.keys = mainListKeys()
@@ -397,8 +440,13 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				title := "Confirm Deletion"
 				message := fmt.Sprintf("Are you sure you want to delete the rune '%s'?", selectedItem.Rune.Name)
 				confirmCmd := func() tea.Msg {
-					m.isLocked = true
-					return m.deleteRuneCmd()
+					m.lockScreen = core.NewLockScreen(m.width, m.height)
+					return tea.Sequence(
+						func() tea.Msg {
+							return ProgressUpdateMsg{Percent: 0.3, LogLine: "Deleting rune..."}
+						},
+						m.deleteRuneCmd,
+					)()
 				}
 				popup := core.NewPopup(title, message, confirmCmd, m.Theme, m.width, m.height)
 				m.popup = &popup
@@ -452,13 +500,24 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		}
 
 	case gotSpellbookMsg: // This case is now primarily for refreshing the data
-		m.isLocked = false
 		m.spellbook = &msg.spellbook
 		items := make([]list.Item, len(m.spellbook.Runes))
 		for i, r := range m.spellbook.Runes {
 			items[i] = core.RuneItem{Rune: r}
 		}
 		m.runesList.SetItems(items)
+
+		finalMsg := "Runes list updated"
+		if m.lockScreen != nil {
+			return m, tea.Sequence(
+				func() tea.Msg {
+					return ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
+				},
+				tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
+					return HideLockScreenMsg{}
+				}),
+			)
+		}
 
 		m.StatusBar.StopSpinner()
 		m.StatusBar.Content = "Updated runes list"
@@ -523,20 +582,28 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	handleSubmit := func() {
-		m.isLocked = true
 		isUpdating := m.previousState == showingRunes
 		if isUpdating {
-			m.StatusBar.Content = "Updating rune..."
-			cmds = append(cmds, tea.Batch(m.StatusBar.StartSpinner(), m.updateRuneCmd))
+			m.lockScreen = core.NewLockScreen(m.width, m.height)
+			cmds = append(cmds, tea.Sequence(
+				func() tea.Msg {
+					return ProgressUpdateMsg{Percent: 0.3, LogLine: "Updating rune..."}
+				},
+				m.updateRuneCmd,
+			))
 		} else {
-			m.StatusBar.Content = "Creating rune..."
-			cmds = append(cmds, tea.Batch(m.StatusBar.StartSpinner(), m.createRuneCmd))
+			m.lockScreen = core.NewLockScreen(m.width, m.height)
+			cmds = append(cmds, tea.Sequence(
+				func() tea.Msg {
+					return ProgressUpdateMsg{Percent: 0.3, LogLine: "Creating rune..."}
+				},
+				m.createRuneCmd,
+			))
 		}
 	}
 
 	switch msg := msg.(type) {
 	case gotSpellbookMsg:
-		m.isLocked = false
 		m.spellbook = &msg.spellbook
 		m.state = showingRunes
 		m.keys = viewingRunesKeys()
@@ -549,13 +616,23 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		}
 		m.runesList.SetItems(items)
 
+		finalMsg := "Rune operation successful"
+		if m.lockScreen != nil {
+			return m, tea.Sequence(
+				func() tea.Msg {
+					return ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
+				},
+				tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
+					return HideLockScreenMsg{}
+				}),
+			)
+		}
 		m.StatusBar.StopSpinner()
 		m.StatusBar.Content = "Updated runes list"
 		m.StatusBar.Level = statusbar.LevelSuccess
 		utils.ResetListFilterState(&m.runesList)
 		return m, clearStatusCmd()
 	case noChangesMsg:
-		m.isLocked = false
 		m.state = showingRunes
 		m.keys = viewingRunesKeys()
 		m.StatusBar.Content = "No changes were made"
@@ -712,8 +789,13 @@ func updateShowingLoegs(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				title := "Confirm Deletion"
 				message := fmt.Sprintf("Are you sure you want to delete the loeg '%s'?", key)
 				confirmCmd := func() tea.Msg {
-					m.isLocked = true
-					return m.removeLoegCmd()
+					m.lockScreen = core.NewLockScreen(m.width, m.height)
+					return tea.Sequence(
+						func() tea.Msg {
+							return ProgressUpdateMsg{Percent: 0.3, LogLine: "Deleting loeg..."}
+						},
+						m.removeLoegCmd,
+					)()
 				}
 				popup := core.NewPopup(title, message, confirmCmd, m.Theme, m.width, m.height)
 				m.popup = &popup
@@ -742,11 +824,22 @@ func updateShowingLoegs(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			return m, textinput.Blink
 		}
 	case gotSpellbookMsg:
-		m.isLocked = false
 		m.spellbook = &msg.spellbook
 		m.state = showingLoegs
 		m.keys = viewingLoegsKeys()
 		m.cursor = 0
+		finalMsg := "Loegs list updated"
+		if m.lockScreen != nil {
+			return m, tea.Sequence(
+				func() tea.Msg {
+					return ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
+				},
+				tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
+					return HideLockScreenMsg{}
+				}),
+			)
+		}
+
 		m.StatusBar.StopSpinner()
 		m.StatusBar.Content = "Updated loegs list"
 		m.StatusBar.Level = statusbar.LevelSuccess
@@ -759,7 +852,20 @@ func updateShowingLoegs(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	case loegRemovedMsg:
 		return m, m.getSpellbookContentCmd
 	case errMsg:
-		m.isLocked = false
+		finalMsg := "An error occurred"
+		if msg.err != nil {
+			finalMsg = msg.err.Error()
+		}
+		if m.lockScreen != nil {
+			return m, tea.Sequence(
+				func() tea.Msg {
+					return ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
+				},
+				tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
+					return HideLockScreenMsg{}
+				}),
+			)
+		}
 		m.err = msg.err
 		m.state = errState
 		m.StatusBar.StopSpinner()
@@ -805,23 +911,49 @@ func updateCreatingLoeg(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, m.keys.Enter):
 			if m.focusIndex == len(m.inputs)-1 || m.focusIndex == len(m.inputs) {
-				m.isLocked = true
-				m.StatusBar.Content = "Setting loeg..."
-				m.StatusBar.Level = statusbar.LevelInfo
-				return m, tea.Batch(m.StatusBar.StartSpinner(), m.setLoegCmd)
+				m.lockScreen = core.NewLockScreen(m.width, m.height)
+				return m, tea.Sequence(
+					func() tea.Msg {
+						return ProgressUpdateMsg{Percent: 0.3, LogLine: "Setting loeg..."}
+					},
+					m.setLoegCmd,
+				)
 			}
 		}
 	case gotSpellbookMsg: // Success message
-		m.isLocked = false
 		m.spellbook = &msg.spellbook
 		m.state = showingLoegs
 		m.keys = viewingLoegsKeys()
+		finalMsg := "Successfully set loeg"
+		if m.lockScreen != nil {
+			return m, tea.Sequence(
+				func() tea.Msg {
+					return ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
+				},
+				tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
+					return HideLockScreenMsg{}
+				}),
+			)
+		}
 		m.StatusBar.StopSpinner()
 		m.StatusBar.Content = "Successfully set loeg"
 		m.StatusBar.Level = statusbar.LevelSuccess
 		return m, clearStatusCmd()
 	case errMsg:
-		m.isLocked = false
+		finalMsg := "An error occurred"
+		if msg.err != nil {
+			finalMsg = msg.err.Error()
+		}
+		if m.lockScreen != nil {
+			return m, tea.Sequence(
+				func() tea.Msg {
+					return ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
+				},
+				tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
+					return HideLockScreenMsg{}
+				}),
+			)
+		}
 		m.err = msg.err
 		m.state = errState
 		m.StatusBar.StopSpinner()
@@ -885,7 +1017,7 @@ func updateShowingHistory(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		m.StatusBar.Level = statusbar.LevelSuccess
 		return m, clearStatusCmd()
 	case errMsg:
-		m.isLocked = false
+		m.lockScreen = nil
 		m.err = msg.err
 		m.state = errState
 		m.StatusBar.Content = "Error: " + msg.err.Error()

@@ -477,14 +477,8 @@ func (m *Model) View() string {
 
 	uiElements := s.String()
 
-	if m.isLocked {
-		uiElements = lipgloss.Place(
-			m.width,
-			m.availableHeight,
-			lipgloss.Center,
-			lipgloss.Center,
-			"Loading...",
-		)
+	if m.lockScreen != nil {
+		uiElements = m.lockScreen.View()
 	}
 
 	mainContent := lipgloss.JoinVertical(lipgloss.Left,
