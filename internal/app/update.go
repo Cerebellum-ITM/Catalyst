@@ -415,12 +415,19 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		}
 		m.runesList.SetItems(items)
 
+		m.StatusBar.StopSpinner()
+		m.StatusBar.Content = "Updated runes list"
+		m.StatusBar.Level = statusbar.LevelSuccess
+		utils.ResetListFilterState(&m.runesList)
+
 		if len(m.spellbook.Runes) > 0 {
 			md := formatRuneDetail(m.spellbook.Runes[0])
 			rendered, _ := glamour.Render(md, "dark")
 			m.viewportSpellBook.SetContent(rendered)
 		}
-		return m, nil // No need for other state changes here
+		return m, clearStatusCmd()
+	case runeDeletedMsg:
+		return m, m.getSpellbookContentCmd
 	}
 
 	// Update the list and get commands
