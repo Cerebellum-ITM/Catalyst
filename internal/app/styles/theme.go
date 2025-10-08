@@ -89,13 +89,13 @@ func (t *Theme) buildStyles() *Styles {
 		Textinput: textinput.Styles{
 			Focused: textinput.StyleState{
 				Text:        base.Foreground(t.Accent),
-				Placeholder: base.Foreground(t.FgSubtle),
+				Placeholder: base.Foreground(t.Blur),
 				Prompt:      base.Foreground(t.Yellow),
 			},
 			Blurred: textinput.StyleState{
-				Text:        base.Foreground(t.Blur),
-				Placeholder: base.Foreground(t.Blur),
-				Prompt:      base.Foreground(t.Blur),
+				Text:        base.Foreground(t.Black),
+				Placeholder: base.Foreground(t.Black),
+				Prompt:      base.Foreground(t.Black),
 			},
 			Cursor: textinput.CursorStyle{
 				Color:      t.Accent,

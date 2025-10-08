@@ -263,16 +263,18 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					m.inputs = make([]core.CustomTextInput, 3) // name, desc, one command
 					var t core.CustomTextInput
 					for i := range m.inputs {
-						textinputCmdName := fmt.Sprintf("Cmd %d", i)
-						t = core.NewTextInput(textinputCmdName, *m.Theme)
+						t = core.NewTextInput("", *m.Theme)
 						switch i {
 						case 0:
-							t.Model.Placeholder = "Rune Name"
+							t.Name = "Rune Name"
+							t.Model.Placeholder = "Init project"
 							t.Model.Focus()
 						case 1:
-							t.Model.Placeholder = "Description"
+							t.Name = "Description"
+							t.Model.Placeholder = "Start the project docker"
 						case 2:
-							t.Model.Placeholder = "Command"
+							t.Name = "Cmd 1"
+							t.Model.Placeholder = "docker compose up -d"
 						}
 						m.inputs[i] = t
 					}
