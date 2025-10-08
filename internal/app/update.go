@@ -33,6 +33,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.recalculateSizes()
 		return m, nil
 	case tea.KeyMsg:
+		if m.isLocked {
+			// If locked, only allow quitting
+			if key.Matches(msg, m.keys.GlobalQuit) {
+				return m, tea.Quit
+			}
+			return m, nil
+		}
 		if m.state == spellbookLoaded {
 			m.state = ready
 			return m, noDelayClearStatusCmd()
@@ -361,6 +368,7 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, m.keys.Delete):
 			if len(m.spellbook.Runes) > 0 {
+				m.isLocked = true
 				m.StatusBar.Content = "Deleting rune..."
 				m.StatusBar.Level = statusbar.LevelWarning
 				return m, tea.Batch(m.StatusBar.StartSpinner(), m.deleteRuneCmd)
@@ -414,6 +422,7 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		}
 
 	case gotSpellbookMsg: // This case is now primarily for refreshing the data
+		m.isLocked = false
 		m.spellbook = &msg.spellbook
 		items := make([]list.Item, len(m.spellbook.Runes))
 		for i, r := range m.spellbook.Runes {
@@ -484,6 +493,7 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	handleSubmit := func() {
+		m.isLocked = true
 		isUpdating := m.previousState == showingRunes
 		if isUpdating {
 			m.StatusBar.Content = "Updating rune..."
@@ -496,6 +506,7 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case gotSpellbookMsg:
+		m.isLocked = false
 		m.spellbook = &msg.spellbook
 		m.state = showingRunes
 		m.keys = viewingRunesKeys()
@@ -514,6 +525,7 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		utils.ResetListFilterState(&m.runesList)
 		return m, clearStatusCmd()
 	case noChangesMsg:
+		m.isLocked = false
 		m.state = showingRunes
 		m.keys = viewingRunesKeys()
 		m.StatusBar.Content = "No changes were made"
@@ -666,6 +678,7 @@ func updateShowingLoegs(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			}
 		case key.Matches(msg, m.keys.Delete):
 			if len(m.loegKeys) > 0 {
+				m.isLocked = true
 				m.StatusBar.Content = "Deleting loeg..."
 				m.StatusBar.Level = statusbar.LevelWarning
 				return m, tea.Batch(m.StatusBar.StartSpinner(), m.removeLoegCmd)
@@ -694,6 +707,7 @@ func updateShowingLoegs(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			return m, textinput.Blink
 		}
 	case gotSpellbookMsg:
+		m.isLocked = false
 		m.spellbook = &msg.spellbook
 		m.state = showingLoegs
 		m.keys = viewingLoegsKeys()
@@ -710,6 +724,7 @@ func updateShowingLoegs(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	case loegRemovedMsg:
 		return m, m.getSpellbookContentCmd
 	case errMsg:
+		m.isLocked = false
 		m.err = msg.err
 		m.state = errState
 		m.StatusBar.StopSpinner()
@@ -755,12 +770,14 @@ func updateCreatingLoeg(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, m.keys.Enter):
 			if m.focusIndex == len(m.inputs)-1 || m.focusIndex == len(m.inputs) {
+				m.isLocked = true
 				m.StatusBar.Content = "Setting loeg..."
 				m.StatusBar.Level = statusbar.LevelInfo
 				return m, tea.Batch(m.StatusBar.StartSpinner(), m.setLoegCmd)
 			}
 		}
 	case gotSpellbookMsg: // Success message
+		m.isLocked = false
 		m.spellbook = &msg.spellbook
 		m.state = showingLoegs
 		m.keys = viewingLoegsKeys()
@@ -769,6 +786,7 @@ func updateCreatingLoeg(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		m.StatusBar.Level = statusbar.LevelSuccess
 		return m, clearStatusCmd()
 	case errMsg:
+		m.isLocked = false
 		m.err = msg.err
 		m.state = errState
 		m.StatusBar.StopSpinner()
@@ -832,6 +850,7 @@ func updateShowingHistory(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		m.StatusBar.Level = statusbar.LevelSuccess
 		return m, clearStatusCmd()
 	case errMsg:
+		m.isLocked = false
 		m.err = msg.err
 		m.state = errState
 		m.StatusBar.Content = "Error: " + msg.err.Error()

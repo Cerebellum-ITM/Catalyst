@@ -103,6 +103,7 @@ type Model struct {
 	focusIndex        int
 	output            string // To store output from executed runes
 	err               error
+	isLocked          bool
 	width             int
 	height            int
 	StatusBar         statusbar.StatusBar
