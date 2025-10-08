@@ -11,6 +11,7 @@ import (
 
 	"catalyst/internal/app/components/core"
 	"catalyst/internal/app/components/statusbar"
+	"catalyst/internal/utils"
 
 	"github.com/charmbracelet/bubbles/v2/key"
 	"github.com/charmbracelet/bubbles/v2/list"
@@ -157,9 +158,7 @@ func updateInitial(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		m.StatusBar.Content = "Ready to start press any key ...."
 		m.StatusBar.StopSpinner()
 		m.focusedElement = listElement
-		m.menuItems.ResetFilter()
-		m.menuItems.SetFilterText("")
-		m.menuItems.SetFilterState(list.FilterState(list.Filtering))
+		utils.ResetListFilterState(&m.menuItems)
 		return m, continueToReadyCmd()
 	case errMsg:
 		if msg.err == nil { // This means the spellbook doesn't exist, time to create it
@@ -216,9 +215,7 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				case key.Matches(keyMsg, m.keys.Down):
 					m.menuItems.CursorDown()
 				case key.Matches(keyMsg, m.keys.ClearFilter):
-					m.menuItems.ResetFilter()
-					m.menuItems.SetFilterText("")
-					m.menuItems.SetFilterState(list.FilterState(list.Filtering))
+					utils.ResetListFilterState(&m.menuItems)
 					return m, nil
 				}
 			}
@@ -235,9 +232,7 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 						items[i] = core.RuneItem{Rune: r}
 					}
 					m.runesList.SetItems(items)
-					m.runesList.ResetFilter()
-					m.runesList.SetFilterText("")
-					m.runesList.SetFilterState(list.FilterState(list.Filtering))
+					utils.ResetListFilterState(&m.runesList)
 
 					m.state = showingRunes
 					m.focusedElement = formElement
@@ -340,9 +335,7 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Down):
 			m.runesList.CursorDown()
 		case key.Matches(msg, m.keys.ClearFilter):
-			m.runesList.ResetFilter()
-			m.runesList.SetFilterText("")
-			m.runesList.SetFilterState(list.FilterState(list.Filtering))
+			utils.ResetListFilterState(&m.runesList)
 			return m, nil
 		case key.Matches(msg, m.keys.Esc):
 			m.state = ready
@@ -494,9 +487,7 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		m.StatusBar.StopSpinner()
 		m.StatusBar.Content = "Updated runes list"
 		m.StatusBar.Level = statusbar.LevelSuccess
-		m.runesList.ResetFilter()
-		m.runesList.SetFilterText("")
-		m.runesList.SetFilterState(list.FilterState(list.Filtering))
+		utils.ResetListFilterState(&m.runesList)
 		return m, clearStatusCmd()
 	case noChangesMsg:
 		m.state = showingRunes
