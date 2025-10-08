@@ -256,6 +256,7 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 					return m, nil
 				case 1: // Create Rune
+					m.previousState = m.state
 					m.state = editingRune
 					m.focusedElement = formElement
 					m.keys = formKeys()
@@ -370,6 +371,7 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, m.keys.Edit):
 			if len(m.spellbook.Runes) > 0 {
+				m.previousState = m.state
 				m.state = editingRune
 				m.keys = formKeys()
 				m.StatusBar.Content = "Editing rune"
@@ -414,7 +416,6 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 	case gotSpellbookMsg: // This case is now primarily for refreshing the data
 		m.spellbook = &msg.spellbook
-
 		items := make([]list.Item, len(m.spellbook.Runes))
 		for i, r := range m.spellbook.Runes {
 			items[i] = core.RuneItem{Rune: r}
@@ -476,6 +477,34 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
 
+	switch msg := msg.(type) {
+	case gotSpellbookMsg:
+		m.spellbook = &msg.spellbook
+		m.state = showingRunes
+		m.keys = viewingRunesKeys()
+		m.cursor = 0
+
+		// Repopulate the runes list with the updated data
+		items := make([]list.Item, len(m.spellbook.Runes))
+		for i, r := range m.spellbook.Runes {
+			items[i] = core.RuneItem{Rune: r}
+		}
+		m.runesList.SetItems(items)
+
+		m.StatusBar.StopSpinner()
+		m.StatusBar.Content = "Updated runes list"
+		m.StatusBar.Level = statusbar.LevelSuccess
+		m.runesList.ResetFilter()
+		m.runesList.SetFilterText("")
+		m.runesList.SetFilterState(list.FilterState(list.Filtering))
+		return m, clearStatusCmd()
+	case noChangesMsg:
+		m.state = showingRunes
+		m.keys = viewingRunesKeys()
+		m.StatusBar.Content = "No changes were made"
+		m.StatusBar.Level = statusbar.LevelInfo
+		return m, clearStatusCmd()
+	}
 	// First, allow the focused input to process the message.
 	// This is crucial for typing and cursor blinking.
 	cmd = m.updateInputs(msg)
@@ -536,7 +565,7 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 		case key.Matches(keyMsg, m.keys.Enter):
 			if m.focusIndex == len(m.inputs) {
-				isUpdating := m.inputs[0].Value() != ""
+				isUpdating := m.previousState == showingRunes
 				if isUpdating {
 					m.StatusBar.Content = "Updating rune..."
 					cmds = append(cmds, tea.Batch(m.StatusBar.StartSpinner(), m.updateRuneCmd))
