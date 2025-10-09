@@ -28,14 +28,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 
 	// Handle component lifecycle messages first. These are high priority.
-	switch msg.(type) {
-	case core.ClosePopupMsg:
+	switch msg := msg.(type) {
+	case core.PopupConfirmedMsg:
 		m.popup = nil
-		// Don't return yet. A command might have just run that spawned a lock screen.
+		return m, msg.ConfirmCmd
 	case HideLockScreenMsg:
 		m.lockScreen = nil
-		return m, nil // This is a final action for this cycle.
+		return m, m.getSpellbookContentCmd // This is the new centralized refresh point
 	}
+
 
 	// If a popup is active, it captures all input and blocks other components.
 	if m.popup != nil {
@@ -467,14 +468,7 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				title := "Confirm Deletion"
 				message := fmt.Sprintf("Are you sure you want to delete the rune '%s'?", selectedItem.Rune.Name)
 				confirmCmd := func() tea.Msg {
-					m.lockScreen = core.NewLockScreen(m.width, m.availableHeight)
-					m.lockScreenJustCreated = true
-					return tea.Sequence(
-						func() tea.Msg {
-							return core.ProgressUpdateMsg{Percent: 0.3, LogLine: "Deleting rune..."}
-						},
-						m.deleteRuneCmd,
-					)()
+					return confirmedDeleteRuneMsg{}
 				}
 				popup := core.NewPopup(title, message, confirmCmd, m.Theme, m.width, m.height)
 				m.popup = &popup
@@ -526,6 +520,17 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 			// ... other key matches like delete, edit ...
 		}
+
+	case confirmedDeleteRuneMsg:
+		m.lockScreen = core.NewLockScreen(m.width, m.availableHeight)
+		m.lockScreenJustCreated = true
+		return m, tea.Sequence(
+			func() tea.Msg {
+				return core.ProgressUpdateMsg{Percent: 0.3, LogLine: "Deleting rune..."}
+			},
+			m.deleteRuneCmd,
+		)
+
 
 	case gotSpellbookMsg: // This case is now primarily for refreshing the data
 		m.spellbook = &msg.spellbook

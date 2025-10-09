@@ -67,6 +67,7 @@ type (
 	ClosePopupMsg  core.ClosePopupMsg
 	demoFinishedMsg   struct{}
 	runDemoStepMsg    struct{}
+	confirmedDeleteRuneMsg struct{}
 	errMsg         struct{ err error }
 )
 

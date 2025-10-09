@@ -11,6 +11,10 @@ import (
 
 type ClosePopupMsg struct{}
 
+type PopupConfirmedMsg struct {
+	ConfirmCmd tea.Cmd
+}
+
 type PopupModel struct {
 	Title      string
 	Message    string
@@ -42,7 +46,9 @@ func (m *PopupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc":
 			return m, func() tea.Msg { return ClosePopupMsg{} }
 		case "enter":
-			return m, tea.Sequence(m.ConfirmCmd, func() tea.Msg { return ClosePopupMsg{} })
+			return m, func() tea.Msg {
+				return PopupConfirmedMsg{ConfirmCmd: m.ConfirmCmd}
+			}
 		}
 	}
 	return m, nil
