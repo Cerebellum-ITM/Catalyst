@@ -42,7 +42,7 @@ func (m *PopupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc":
 			return m, func() tea.Msg { return ClosePopupMsg{} }
 		case "enter":
-			return m, tea.Batch(m.ConfirmCmd, func() tea.Msg { return ClosePopupMsg{} })
+			return m, tea.Sequence(m.ConfirmCmd, func() tea.Msg { return ClosePopupMsg{} })
 		}
 	}
 	return m, nil

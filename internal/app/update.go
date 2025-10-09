@@ -22,57 +22,75 @@ import (
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
+
+	// Always update the status bar.
 	m.StatusBar, cmd = m.StatusBar.Update(msg)
 	cmds = append(cmds, cmd)
 
-	// Handle popup closing and other global messages first
+	// Handle component lifecycle messages first. These are high priority.
 	switch msg.(type) {
 	case core.ClosePopupMsg:
 		m.popup = nil
-		return m, nil
+		// Don't return yet. A command might have just run that spawned a lock screen.
 	case HideLockScreenMsg:
 		m.lockScreen = nil
-		return m, nil
+		return m, nil // This is a final action for this cycle.
 	}
 
-	// If a lock screen is active, we only forward specific messages to it.
-	// Other messages, especially those indicating completion (gotSpellbookMsg, errMsg),
-	// should be processed by the main update logic to close the lock screen.
-	if m.lockScreen != nil {
-		switch msg.(type) {
-		case tea.WindowSizeMsg, core.ProgressUpdateMsg, core.FrameMsg:
-			var lockScreenModel tea.Model
-			lockScreenModel, cmd = m.lockScreen.Update(msg)
-			if newLockScreenModel, ok := lockScreenModel.(*core.LockScreenModel); ok {
-				m.lockScreen = newLockScreenModel
-			} else {
-				// Handle the case where the type assertion fails, perhaps by logging an error
-				// or setting lockScreen to nil, depending on desired behavior.
-				m.lockScreen = nil
-			}
-			return m, cmd
-		}
-	}
-
-	// If a popup is active, forward messages to it
+	// If a popup is active, it captures all input and blocks other components.
 	if m.popup != nil {
 		var popupModel tea.Model
 		popupModel, cmd = m.popup.Update(msg)
 		if newPopupModel, ok := popupModel.(*core.PopupModel); ok {
 			m.popup = newPopupModel
 		} else {
-			m.popup = nil
+			m.popup = nil // Should not happen, but good to be safe.
 		}
-		return m, cmd
+		cmds = append(cmds, cmd)
+		return m, tea.Batch(cmds...)
 	}
 
+	// If a lock screen is active, it also captures messages for animation,
+	// but we must allow completion messages to fall through to the main logic.
+	if m.lockScreen != nil {
+		// If the lock screen was just created, we need to initialize it.
+		// This is where the animation starts.
+		if m.lockScreenJustCreated {
+			cmds = append(cmds, m.lockScreen.Init())
+			m.lockScreenJustCreated = false
+		}
+
+		// For messages that are not completion signals, pass them to the lock
+		// screen, but don't return. This allows multiple animation messages
+		// (e.g., for spinner and progress bar) to be processed in one cycle.
+		var lockScreenModel tea.Model
+		lockScreenModel, cmd = m.lockScreen.Update(msg)
+		if newLockScreenModel, ok := lockScreenModel.(*core.LockScreenModel); ok {
+			m.lockScreen = newLockScreenModel
+		} else {
+			m.lockScreen = nil // Should not happen.
+		}
+		cmds = append(cmds, cmd)
+
+		// Only return early if the message was NOT a completion signal.
+		// Completion signals need to fall through to the main state logic.
+		switch msg.(type) {
+		case gotSpellbookMsg, errMsg, demoFinishedMsg:
+			// Fall through
+		default:
+			return m, tea.Batch(cmds...)
+		}
+	}
+
+
+	// Main application logic.
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		m.StatusBar.AppWith = m.width
 		m.recalculateSizes()
-		return m, nil
+		// No need to return here, let other components process the size change.
 	case tea.KeyMsg:
 		if m.state == spellbookLoaded {
 			m.state = ready
@@ -93,29 +111,33 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.state = ready
 		}
 		return m, noDelayClearStatusCmd()
-	case core.ClosePopupMsg:
-		m.popup = nil
-		return m, nil
 	}
 
+	// Route updates to the correct state handler.
+	var stateCmd tea.Cmd
 	switch m.state {
 	case ready:
-		return updateReady(msg, m)
+		_, stateCmd = updateReady(msg, m)
 	case showingRunes:
-		return updateShowingRunes(msg, m)
+		_, stateCmd = updateShowingRunes(msg, m)
 	case executingRune:
-		return updateExecutingRune(msg, m)
+		_, stateCmd = updateExecutingRune(msg, m)
 	case showingLoegs:
-		return updateShowingLoegs(msg, m)
+		_, stateCmd = updateShowingLoegs(msg, m)
 	case creatingLoeg:
-		return updateCreatingLoeg(msg, m)
+		_, stateCmd = updateCreatingLoeg(msg, m)
 	case editingRune:
-		return updateEditingRune(msg, m)
+		_, stateCmd = updateEditingRune(msg, m)
 	case showingHistory:
-		return updateShowingHistory(msg, m)
+		_, stateCmd = updateShowingHistory(msg, m)
+	case demo:
+		_, stateCmd = updateDemo(msg, m)
 	default:
-		return updateInitial(msg, m)
+		_, stateCmd = updateInitial(msg, m)
 	}
+	cmds = append(cmds, stateCmd)
+
+	return m, tea.Batch(cmds...)
 }
 
 func (m *Model) changeFocusedElement() {
@@ -213,7 +235,7 @@ func updateInitial(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		if m.lockScreen != nil {
 			return m, tea.Sequence(
 				func() tea.Msg {
-					return ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
+					return core.ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
 				},
 				tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
 					return HideLockScreenMsg{}
@@ -258,7 +280,7 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		if m.lockScreen != nil {
 			return m, tea.Sequence(
 				func() tea.Msg {
-					return ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
+					return core.ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
 				},
 				tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
 					return HideLockScreenMsg{}
@@ -366,6 +388,11 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					m.state = showingHistory
 					m.StatusBar.Content = "Viewing History"
 					return m, m.getHistoryCmd
+				case 4: // Demo Lock Screen
+					m.state = demo
+					m.lockScreen = core.NewLockScreen(m.width, m.availableHeight)
+					m.lockScreenJustCreated = true
+					return m, m.runDemoCmd()
 				}
 			}
 		}
@@ -440,10 +467,11 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				title := "Confirm Deletion"
 				message := fmt.Sprintf("Are you sure you want to delete the rune '%s'?", selectedItem.Rune.Name)
 				confirmCmd := func() tea.Msg {
-					m.lockScreen = core.NewLockScreen(m.width, m.height)
+					m.lockScreen = core.NewLockScreen(m.width, m.availableHeight)
+					m.lockScreenJustCreated = true
 					return tea.Sequence(
 						func() tea.Msg {
-							return ProgressUpdateMsg{Percent: 0.3, LogLine: "Deleting rune..."}
+							return core.ProgressUpdateMsg{Percent: 0.3, LogLine: "Deleting rune..."}
 						},
 						m.deleteRuneCmd,
 					)()
@@ -511,7 +539,7 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		if m.lockScreen != nil {
 			return m, tea.Sequence(
 				func() tea.Msg {
-					return ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
+					return core.ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
 				},
 				tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
 					return HideLockScreenMsg{}
@@ -584,18 +612,20 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	handleSubmit := func() {
 		isUpdating := m.previousState == showingRunes
 		if isUpdating {
-			m.lockScreen = core.NewLockScreen(m.width, m.height)
+			m.lockScreen = core.NewLockScreen(m.width, m.availableHeight)
+			m.lockScreenJustCreated = true
 			cmds = append(cmds, tea.Sequence(
 				func() tea.Msg {
-					return ProgressUpdateMsg{Percent: 0.3, LogLine: "Updating rune..."}
+					return core.ProgressUpdateMsg{Percent: 0.3, LogLine: "Updating rune..."}
 				},
 				m.updateRuneCmd,
 			))
 		} else {
-			m.lockScreen = core.NewLockScreen(m.width, m.height)
+			m.lockScreen = core.NewLockScreen(m.width, m.availableHeight)
+			m.lockScreenJustCreated = true
 			cmds = append(cmds, tea.Sequence(
 				func() tea.Msg {
-					return ProgressUpdateMsg{Percent: 0.3, LogLine: "Creating rune..."}
+					return core.ProgressUpdateMsg{Percent: 0.3, LogLine: "Creating rune..."}
 				},
 				m.createRuneCmd,
 			))
@@ -604,27 +634,31 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case gotSpellbookMsg:
+		// After a successful create/update, we get the spellbook.
+		// Now, we need to refresh the rune list with the new data.
 		m.spellbook = &msg.spellbook
-		m.state = showingRunes
-		m.keys = viewingRunesKeys()
-		m.cursor = 0
-
-		// Repopulate the runes list with the updated data
 		items := make([]list.Item, len(m.spellbook.Runes))
 		for i, r := range m.spellbook.Runes {
 			items[i] = core.RuneItem{Rune: r}
 		}
 		m.runesList.SetItems(items)
 
+		// And then transition back to the rune list view.
+		m.state = showingRunes
+		m.keys = viewingRunesKeys()
+		m.cursor = 0
+
 		finalMsg := "Rune operation successful"
 		if m.lockScreen != nil {
 			return m, tea.Sequence(
 				func() tea.Msg {
-					return ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
+					return core.ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
 				},
 				tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
 					return HideLockScreenMsg{}
 				}),
+				// After hiding the lock screen, get the fresh spellbook content
+				m.getSpellbookContentCmd,
 			)
 		}
 		m.StatusBar.StopSpinner()
@@ -789,10 +823,11 @@ func updateShowingLoegs(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				title := "Confirm Deletion"
 				message := fmt.Sprintf("Are you sure you want to delete the loeg '%s'?", key)
 				confirmCmd := func() tea.Msg {
-					m.lockScreen = core.NewLockScreen(m.width, m.height)
+					m.lockScreen = core.NewLockScreen(m.width, m.availableHeight)
+					m.lockScreenJustCreated = true
 					return tea.Sequence(
 						func() tea.Msg {
-							return ProgressUpdateMsg{Percent: 0.3, LogLine: "Deleting loeg..."}
+							return core.ProgressUpdateMsg{Percent: 0.3, LogLine: "Deleting loeg..."}
 						},
 						m.removeLoegCmd,
 					)()
@@ -832,7 +867,7 @@ func updateShowingLoegs(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		if m.lockScreen != nil {
 			return m, tea.Sequence(
 				func() tea.Msg {
-					return ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
+					return core.ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
 				},
 				tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
 					return HideLockScreenMsg{}
@@ -859,7 +894,7 @@ func updateShowingLoegs(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		if m.lockScreen != nil {
 			return m, tea.Sequence(
 				func() tea.Msg {
-					return ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
+					return core.ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
 				},
 				tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
 					return HideLockScreenMsg{}
@@ -911,10 +946,11 @@ func updateCreatingLoeg(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, m.keys.Enter):
 			if m.focusIndex == len(m.inputs)-1 || m.focusIndex == len(m.inputs) {
-				m.lockScreen = core.NewLockScreen(m.width, m.height)
+				m.lockScreen = core.NewLockScreen(m.width, m.availableHeight)
+				m.lockScreenJustCreated = true
 				return m, tea.Sequence(
 					func() tea.Msg {
-						return ProgressUpdateMsg{Percent: 0.3, LogLine: "Setting loeg..."}
+						return core.ProgressUpdateMsg{Percent: 0.3, LogLine: "Setting loeg..."}
 					},
 					m.setLoegCmd,
 				)
@@ -928,7 +964,7 @@ func updateCreatingLoeg(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		if m.lockScreen != nil {
 			return m, tea.Sequence(
 				func() tea.Msg {
-					return ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
+					return core.ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
 				},
 				tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
 					return HideLockScreenMsg{}
@@ -947,7 +983,7 @@ func updateCreatingLoeg(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		if m.lockScreen != nil {
 			return m, tea.Sequence(
 				func() tea.Msg {
-					return ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
+					return core.ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
 				},
 				tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
 					return HideLockScreenMsg{}
@@ -1026,3 +1062,46 @@ func updateShowingHistory(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
+
+// updateDemo handles the lock screen demo.
+func updateDemo(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
+	switch msg.(type) {
+	case runDemoStepMsg:
+		steps := []struct {
+			percent float64
+			log     string
+		}{
+			{0.0, "Starting demo..."},
+			{0.25, "Step 1/4 complete"},
+			{0.5, "Step 2/4 complete"},
+			{0.75, "Step 3/4 complete"},
+			{1.0, "Step 4/4 complete"},
+		}
+
+		if m.demoStep < len(steps) {
+			step := steps[m.demoStep]
+			m.demoStep++
+			return m, tea.Batch(
+				func() tea.Msg {
+					return core.ProgressUpdateMsg{Percent: step.percent, LogLine: step.log}
+				},
+				tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
+					return runDemoStepMsg{}
+				}),
+			)
+		}
+		// Demo finished
+		return m, tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
+			return demoFinishedMsg{}
+		})
+
+	case demoFinishedMsg:
+		m.state = ready
+		m.lockScreen = nil
+		m.StatusBar.Content = "Demo finished"
+		m.StatusBar.Level = statusbar.LevelSuccess
+		return m, clearStatusCmd()
+	}
+	return m, nil
+}
+

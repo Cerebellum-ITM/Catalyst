@@ -40,6 +40,7 @@ const (
 	editingRune
 	showingHistory
 	errState
+	demo
 )
 
 type focusableElement int
@@ -62,15 +63,13 @@ type (
 	runeDeletedMsg  struct{}
 	gotHistoryMsg   struct{ history []db.HistoryEntry }
 	noChangesMsg    struct{} // Message to indicate no changes were made
-	clearStatusMsg    struct{}
-	ClosePopupMsg     core.ClosePopupMsg
-	errMsg            struct{ err error }
+	clearStatusMsg struct{}
+	ClosePopupMsg  core.ClosePopupMsg
+	demoFinishedMsg   struct{}
+	runDemoStepMsg    struct{}
+	errMsg         struct{ err error }
 )
 
-type ProgressUpdateMsg struct {
-	Percent float64
-	LogLine string
-}
 
 type HideLockScreenMsg struct{}
 
@@ -109,16 +108,20 @@ type Model struct {
 	history           []db.HistoryEntry      // For the history view
 	inputs            []core.CustomTextInput // For the "Create Rune" form
 	focusIndex        int
-	output            string // To store output from executed runes
-	err               error
-	lockScreen        *core.LockScreenModel
-	popup             *core.PopupModel
+	output                  string // To store output from executed runes
+	err                     error
+	lockScreen              *core.LockScreenModel
+	lockScreenJustCreated   bool
+	popup                   *core.PopupModel
+	demoStep                int
+	demoCounter             int
 	width             int
 	height            int
 	StatusBar         statusbar.StatusBar
 	Theme             *styles.Theme
 	Version           string
 	SpellbookString   string
+	program           *tea.Program
 }
 
 // NewModel creates a new application model.
@@ -295,7 +298,12 @@ func (m *Model) createRuneCmd() tea.Msg {
 	if err != nil {
 		return errMsg{err}
 	}
-	return m.getSpellbookContentCmd() // Refresh cache
+	return tea.Sequence(
+		func() tea.Msg {
+			return core.ProgressUpdateMsg{Percent: 0.6, LogLine: "Refreshing spellbook..."}
+		},
+		m.getSpellbookContentCmd,
+	)()
 }
 
 // executeRuneCmd runs the commands for a selected rune from the main list.
@@ -352,7 +360,12 @@ func (m *Model) setLoegCmd() tea.Msg {
 	if err != nil {
 		return errMsg{err}
 	}
-	return m.getSpellbookContentCmd() // Refresh cache
+	return tea.Sequence(
+		func() tea.Msg {
+			return core.ProgressUpdateMsg{Percent: 0.6, LogLine: "Refreshing spellbook..."}
+		},
+		m.getSpellbookContentCmd,
+	)()
 }
 
 // removeLoegCmd removes a loeg.
@@ -367,7 +380,12 @@ func (m *Model) removeLoegCmd() tea.Msg {
 	if err != nil {
 		return errMsg{err}
 	}
-	return m.getSpellbookContentCmd() // Refresh cache
+	return tea.Sequence(
+		func() tea.Msg {
+			return core.ProgressUpdateMsg{Percent: 0.6, LogLine: "Refreshing spellbook..."}
+		},
+		m.getSpellbookContentCmd,
+	)()
 }
 
 // updateRuneCmd sends the command to update an existing rune.
@@ -414,7 +432,12 @@ func (m *Model) updateRuneCmd() tea.Msg {
 	if err != nil {
 		return errMsg{err}
 	}
-	return m.getSpellbookContentCmd() // Refresh cache
+	return tea.Sequence(
+		func() tea.Msg {
+			return core.ProgressUpdateMsg{Percent: 0.6, LogLine: "Refreshing spellbook..."}
+		},
+		m.getSpellbookContentCmd,
+	)()
 }
 
 // deleteRuneCmd sends the command to delete a rune.
@@ -429,7 +452,16 @@ func (m *Model) deleteRuneCmd() tea.Msg {
 	if err != nil {
 		return errMsg{err}
 	}
-	return m.getSpellbookContentCmd() // Refresh cache
+	return tea.Sequence(
+		func() tea.Msg {
+			return core.ProgressUpdateMsg{Percent: 0.6, LogLine: "Refreshing spellbook..."}
+		},
+		m.getSpellbookContentCmd,
+	)()
+}
+
+func (m *Model) SetProgram(p *tea.Program) {
+	m.program = p
 }
 
 // Init is called once when the application starts.
@@ -439,4 +471,11 @@ func (m Model) Init() tea.Cmd {
 		m.getSpellbookContentCmd,
 		m.StatusBar.Spinner.Tick, // Start the spinner
 	)
+}
+
+func (m *Model) runDemoCmd() tea.Cmd {
+	m.demoStep = 0
+	return func() tea.Msg {
+		return runDemoStepMsg{}
+	}
 }

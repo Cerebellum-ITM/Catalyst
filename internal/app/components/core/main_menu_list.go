@@ -48,6 +48,7 @@ func NewMainMenu(theme styles.Theme) list.Model {
 		MenuItem{title: "Create Rune", value: 1},
 		MenuItem{title: "Manage Loegs", value: 2},
 		MenuItem{title: "View History", value: 3},
+		MenuItem{title: "Demo Lock Screen", value: 4},
 	}
 
 	mainList := list.New(items, MainMenuDelegate{Theme: theme}, 0, 0)
