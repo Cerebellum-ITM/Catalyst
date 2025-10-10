@@ -76,7 +76,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Only return early if the message was NOT a completion signal.
 		// Completion signals need to fall through to the main state logic.
 		switch msg.(type) {
-		case gotSpellbookMsg, errMsg, demoFinishedMsg:
+		case gotSpellbookMsg, errMsg, demoFinishedMsg, tea.WindowSizeMsg:
 			// Fall through
 		default:
 			return m, tea.Batch(cmds...)
@@ -91,6 +91,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.StatusBar.AppWith = m.width
 		m.recalculateSizes()
+		if m.lockScreen != nil {
+			m.lockScreen.Resize(m.width, m.availableHeight)
+		}
 		// No need to return here, let other components process the size change.
 	case tea.KeyMsg:
 		if m.state == spellbookLoaded {
@@ -391,7 +394,7 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					return m, m.getHistoryCmd
 				case 4: // Demo Lock Screen
 					m.state = demo
-					m.lockScreen = core.NewLockScreen(m.width, m.availableHeight)
+					m.lockScreen = core.NewLockScreen(m.width, m.availableHeight, "Running Demo...")
 					m.lockScreenJustCreated = true
 					return m, m.runDemoCmd()
 				}
@@ -522,7 +525,7 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		}
 
 	case confirmedDeleteRuneMsg:
-		m.lockScreen = core.NewLockScreen(m.width, m.availableHeight)
+		m.lockScreen = core.NewLockScreen(m.width, m.availableHeight, "Deleting Rune...")
 		m.lockScreenJustCreated = true
 		return m, tea.Sequence(
 			func() tea.Msg {
@@ -617,7 +620,7 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	handleSubmit := func() {
 		isUpdating := m.previousState == showingRunes
 		if isUpdating {
-			m.lockScreen = core.NewLockScreen(m.width, m.availableHeight)
+			m.lockScreen = core.NewLockScreen(m.width, m.availableHeight, "Updating Rune...")
 			m.lockScreenJustCreated = true
 			cmds = append(cmds, tea.Sequence(
 				func() tea.Msg {
@@ -626,7 +629,7 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				m.updateRuneCmd,
 			))
 		} else {
-			m.lockScreen = core.NewLockScreen(m.width, m.availableHeight)
+			m.lockScreen = core.NewLockScreen(m.width, m.availableHeight, "Creating Rune...")
 			m.lockScreenJustCreated = true
 			cmds = append(cmds, tea.Sequence(
 				func() tea.Msg {
@@ -828,7 +831,7 @@ func updateShowingLoegs(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				title := "Confirm Deletion"
 				message := fmt.Sprintf("Are you sure you want to delete the loeg '%s'?", key)
 				confirmCmd := func() tea.Msg {
-					m.lockScreen = core.NewLockScreen(m.width, m.availableHeight)
+					m.lockScreen = core.NewLockScreen(m.width, m.availableHeight, "Deleting Loeg...")
 					m.lockScreenJustCreated = true
 					return tea.Sequence(
 						func() tea.Msg {
@@ -951,7 +954,7 @@ func updateCreatingLoeg(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, m.keys.Enter):
 			if m.focusIndex == len(m.inputs)-1 || m.focusIndex == len(m.inputs) {
-				m.lockScreen = core.NewLockScreen(m.width, m.availableHeight)
+				m.lockScreen = core.NewLockScreen(m.width, m.availableHeight, "Setting Loeg...")
 				m.lockScreenJustCreated = true
 				return m, tea.Sequence(
 					func() tea.Msg {
