@@ -394,7 +394,7 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					return m, m.getHistoryCmd
 				case 4: // Demo Lock Screen
 					m.state = demo
-					m.lockScreen = core.NewLockScreen(m.width, m.availableHeight, "Running Demo...")
+					m.lockScreen = core.NewLockScreen(m.width, m.availableHeight, "Running Demo...", m.Theme)
 					m.lockScreenJustCreated = true
 					return m, m.runDemoCmd()
 				}
@@ -525,7 +525,7 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		}
 
 	case confirmedDeleteRuneMsg:
-		m.lockScreen = core.NewLockScreen(m.width, m.availableHeight, "Deleting Rune...")
+		m.lockScreen = core.NewLockScreen(m.width, m.availableHeight, "Deleting Rune...", m.Theme)
 		m.lockScreenJustCreated = true
 		return m, tea.Sequence(
 			func() tea.Msg {
@@ -620,7 +620,7 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	handleSubmit := func() {
 		isUpdating := m.previousState == showingRunes
 		if isUpdating {
-			m.lockScreen = core.NewLockScreen(m.width, m.availableHeight, "Updating Rune...")
+			m.lockScreen = core.NewLockScreen(m.width, m.availableHeight, "Updating Rune...", m.Theme)
 			m.lockScreenJustCreated = true
 			cmds = append(cmds, tea.Sequence(
 				func() tea.Msg {
@@ -629,7 +629,7 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				m.updateRuneCmd,
 			))
 		} else {
-			m.lockScreen = core.NewLockScreen(m.width, m.availableHeight, "Creating Rune...")
+			m.lockScreen = core.NewLockScreen(m.width, m.availableHeight, "Creating Rune...", m.Theme)
 			m.lockScreenJustCreated = true
 			cmds = append(cmds, tea.Sequence(
 				func() tea.Msg {
@@ -831,7 +831,7 @@ func updateShowingLoegs(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				title := "Confirm Deletion"
 				message := fmt.Sprintf("Are you sure you want to delete the loeg '%s'?", key)
 				confirmCmd := func() tea.Msg {
-					m.lockScreen = core.NewLockScreen(m.width, m.availableHeight, "Deleting Loeg...")
+					m.lockScreen = core.NewLockScreen(m.width, m.availableHeight, "Deleting Loeg...", m.Theme)
 					m.lockScreenJustCreated = true
 					return tea.Sequence(
 						func() tea.Msg {
@@ -954,7 +954,7 @@ func updateCreatingLoeg(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, m.keys.Enter):
 			if m.focusIndex == len(m.inputs)-1 || m.focusIndex == len(m.inputs) {
-				m.lockScreen = core.NewLockScreen(m.width, m.availableHeight, "Setting Loeg...")
+				m.lockScreen = core.NewLockScreen(m.width, m.availableHeight, "Setting Loeg...", m.Theme)
 				m.lockScreenJustCreated = true
 				return m, tea.Sequence(
 					func() tea.Msg {

@@ -3,6 +3,8 @@ package core
 import (
 	"bytes"
 
+	"catalyst/internal/app/styles"
+
 	"github.com/charmbracelet/bubbles/v2/progress"
 	"github.com/charmbracelet/bubbles/v2/spinner"
 	"github.com/charmbracelet/bubbles/v2/viewport"
@@ -26,9 +28,14 @@ type LockScreenModel struct {
 	width      int
 	height     int
 	ActionText string
+	theme      *styles.Theme
 }
 
-func NewLockScreen(width, availableHeight int, actionText string) *LockScreenModel {
+func NewLockScreen(
+	width, availableHeight int,
+	actionText string,
+	theme *styles.Theme,
+) *LockScreenModel {
 	logOutput := new(bytes.Buffer)
 	logger := log.New(logOutput)
 	logger.SetColorProfile(termenv.TrueColor)
@@ -41,7 +48,7 @@ func NewLockScreen(width, availableHeight int, actionText string) *LockScreenMod
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	s.Style = lipgloss.NewStyle().Foreground(theme.Accent)
 
 	// spinner(1) + progress(1) + action text(1) + margins(2) = 5
 	viewportHeight := availableHeight - 5
@@ -58,6 +65,7 @@ func NewLockScreen(width, availableHeight int, actionText string) *LockScreenMod
 		width:      width,
 		height:     availableHeight,
 		ActionText: actionText,
+		theme:      theme,
 	}
 }
 
@@ -101,17 +109,19 @@ func (m *LockScreenModel) View() string {
 	progressView := m.progress.View()
 	spinnerView := m.spinner.View()
 	actionView := lipgloss.NewStyle().Bold(true).Render(m.ActionText)
+	VerticalSpace := lipgloss.NewStyle().Height(1).Render("")
 
 	// Style for the logs container is now applied to the viewport
 	m.viewport.Style = lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("63")).
+		BorderForeground(m.theme.Accent).
 		Padding(0, 1)
 
 	spinnerAndAction := lipgloss.JoinHorizontal(lipgloss.Center, spinnerView, " ", actionView)
 	ui := lipgloss.JoinVertical(
 		lipgloss.Center,
 		spinnerAndAction,
+		VerticalSpace,
 		progressView,
 		m.viewport.View(),
 	)
