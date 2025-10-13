@@ -2,14 +2,15 @@ package core
 
 import (
 	"bytes"
+	"time"
 
 	"catalyst/internal/app/styles"
 
 	"github.com/charmbracelet/bubbles/v2/viewport"
 	tea "github.com/charmbracelet/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/lipgloss/v2"
-	"github.com/charmbracelet/log"
-	"github.com/muesli/termenv"
+	"github.com/charmbracelet/log/v2"
 )
 
 type LogsViewModel struct {
@@ -26,9 +27,16 @@ func NewLogsView(
 	theme *styles.Theme,
 ) *LogsViewModel {
 	logOutput := new(bytes.Buffer)
-	logger := log.New(logOutput)
-	logger.SetColorProfile(termenv.TrueColor)
+	logger := log.NewWithOptions(logOutput, log.Options{
+		ReportCaller:    false,
+		ReportTimestamp: true,
+		TimeFormat:      time.Kitchen,
+	})
 	logger.SetLevel(log.DebugLevel)
+	logger.SetColorProfile(colorprofile.TrueColor)
+	style := log.DefaultStyles()
+	style.Key = style.Key.Foreground(lipgloss.Blue).Faint(true)
+	logger.SetStyles(style)
 
 	vp := viewport.New()
 	vp.SetHeight(availableHeight)

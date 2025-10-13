@@ -23,6 +23,7 @@ require (
 	github.com/charmbracelet/colorprofile v0.3.2 // indirect
 	github.com/charmbracelet/harmonica v0.2.0 // indirect
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834 // indirect
+	github.com/charmbracelet/log/v2 v2.0.0-20250226163916-c379e29ff706 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20250910155420-aa0094762299 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
 	github.com/charmbracelet/x/exp/color v0.0.0-20250915100343-2c2e5896ae6e // indirect
