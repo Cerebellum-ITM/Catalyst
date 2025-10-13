@@ -35,7 +35,8 @@ func NewLogsView(
 	logger.SetLevel(log.DebugLevel)
 	logger.SetColorProfile(colorprofile.TrueColor)
 	style := log.DefaultStyles()
-	style.Key = style.Key.Foreground(lipgloss.Blue).Faint(true)
+	style.Key = style.Key.Foreground(theme.Accent)
+	style.Value = style.Value.Foreground(theme.FgHalfMuted)
 	logger.SetStyles(style)
 
 	vp := viewport.New()
