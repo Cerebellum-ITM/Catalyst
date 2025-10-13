@@ -49,6 +49,8 @@ const (
 	formElement focusableElement = iota
 	listElement
 	viewportElement
+	logsViewportElement
+	outputViewportElement
 )
 
 // Define messages for async operations.

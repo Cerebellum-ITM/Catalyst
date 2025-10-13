@@ -469,6 +469,7 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			m.executingRuneName = selectedItem.Rune.Name // Store the name
 			// Initialize the logs view here, *before* executing the command
 			m.logsView = core.NewLogsView(m.width/3, m.availableHeight, m.Theme)
+			m.focusedElement = logsViewportElement // Set initial focus
 			m.recalculateSizes()
 			return m, tea.Batch(m.StatusBar.StartSpinner(), m.executeSpecificRuneCmd(selectedItem.Rune))
 
@@ -603,6 +604,14 @@ func updateExecutingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
+		case key.Matches(msg, m.keys.SwitchFocus):
+			if m.focusedElement == logsViewportElement {
+				m.focusedElement = outputViewportElement
+			} else {
+				m.focusedElement = logsViewportElement
+			}
+			return m, nil
+
 		case key.Matches(msg, m.keys.Esc), key.Matches(msg, m.keys.Enter):
 			// Return to the previous state (either showingRunes or showingHistory)
 			if m.previousState == showingHistory {
@@ -616,6 +625,20 @@ func updateExecutingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			m.StatusBar.Content = "Viewing Runes"
 			return m, nil
 		}
+
+		// Pass navigation keys to the focused viewport
+		if m.focusedElement == logsViewportElement && m.logsView != nil {
+			var logsModel tea.Model
+			logsModel, cmd = m.logsView.Update(msg)
+			if newLogsModel, ok := logsModel.(*core.LogsViewModel); ok {
+				m.logsView = newLogsModel
+			}
+			cmds = append(cmds, cmd)
+		} else if m.focusedElement == outputViewportElement {
+			m.executingViewport, cmd = m.executingViewport.Update(msg)
+			cmds = append(cmds, cmd)
+		}
+
 	case runeExecutedMsg:
 		m.output = msg.output
 		m.StatusBar.StopSpinner()
@@ -643,9 +666,6 @@ func updateExecutingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		}
 		cmds = append(cmds, m.executeNextCommandCmd)
 	}
-
-	m.executingViewport, cmd = m.executingViewport.Update(msg)
-	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
 }
@@ -1087,6 +1107,7 @@ func updateShowingHistory(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					m.executingRuneName = selectedRune.Name // Store the name
 					// Initialize the logs view here as well
 					m.logsView = core.NewLogsView(m.width/3, m.availableHeight, m.Theme)
+					m.focusedElement = logsViewportElement // Set initial focus
 					return m, tea.Batch(m.StatusBar.StartSpinner(), m.executeSpecificRuneCmd(*selectedRune))
 				}
 				// Optional: Handle case where rune is not found anymore

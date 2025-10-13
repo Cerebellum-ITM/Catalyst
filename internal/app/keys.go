@@ -116,10 +116,13 @@ func formKeys() KeyMap {
 
 func executingRuneKeys() KeyMap {
 	return KeyMap{
-		Enter:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "back")),
-		Esc:        key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
-		GlobalQuit: key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "quit")),
-		Help:       key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+		Up:          key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "scroll up")),
+		Down:        key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "scroll down")),
+		SwitchFocus: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "switch focus")),
+		Enter:       key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "back")),
+		Esc:         key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
+		GlobalQuit:  key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "quit")),
+		Help:        key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 	}
 }
 

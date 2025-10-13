@@ -213,17 +213,18 @@ func (m *Model) executingRuneHeaderLeft(state string) string {
 		state,
 		"Commands",
 		HeaderStyle,
-		(m.width/3),
+		(m.width / 3),
 		AlignHeader,
 	)
 }
 
 func (m *Model) executingRuneFooterLeft(state string) string {
+	info := fmt.Sprintf("%3.f%%", m.executingViewport.ScrollPercent()*100)
 	return m.buildStyledBorder(
 		state,
-		"",
+		info,
 		FooterStyle,
-		(m.width/3),
+		(m.width / 3),
 		AlignFooter,
 	)
 }
@@ -233,7 +234,7 @@ func (m *Model) executingRuneHeaderRight(state string) string {
 		state,
 		"Output",
 		HeaderStyle,
-		(m.width*2/3),
+		(m.width * 2 / 3),
 		AlignHeader,
 	)
 }
@@ -244,7 +245,7 @@ func (m *Model) executingRuneFooterRight(state string) string {
 		state,
 		info,
 		FooterStyle,
-		(m.width*2/3),
+		(m.width * 2 / 3),
 		AlignFooter,
 	)
 }
@@ -458,10 +459,17 @@ func (m *Model) View() string {
 		s.WriteString(stateView)
 
 	case executingRune:
-		headerLeft := m.executingRuneHeaderLeft("blur")
-		footerLeft := m.executingRuneFooterLeft("blur")
-		headerRight := m.executingRuneHeaderRight("focus")
-		footerRight := m.executingRuneFooterRight("focus")
+		logsState, outputState := "blur", "blur"
+		if m.focusedElement == logsViewportElement {
+			logsState = "focus"
+		} else {
+			outputState = "focus"
+		}
+
+		headerLeft := m.executingRuneHeaderLeft(logsState)
+		footerLeft := m.executingRuneFooterLeft(logsState)
+		headerRight := m.executingRuneHeaderRight(outputState)
+		footerRight := m.executingRuneFooterRight(outputState)
 		extraContentHeight := lipgloss.Height(headerRight) + lipgloss.Height(footerRight)
 		m.recalculateSizes(WithExtraContent(extraContentHeight))
 
