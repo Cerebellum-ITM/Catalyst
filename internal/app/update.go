@@ -3,9 +3,12 @@ package app
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"catalyst/internal/types"
+
+	"github.com/charmbracelet/log"
 
 	"github.com/charmbracelet/glamour"
 
@@ -36,7 +39,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.lockScreen = nil
 		return m, m.getSpellbookContentCmd // This is the new centralized refresh point
 	}
-
 
 	// If a popup is active, it captures all input and blocks other components.
 	if m.popup != nil {
@@ -82,7 +84,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(cmds...)
 		}
 	}
-
 
 	// Main application logic.
 	switch msg := msg.(type) {
@@ -394,7 +395,12 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					return m, m.getHistoryCmd
 				case 4: // Demo Lock Screen
 					m.state = demo
-					m.lockScreen = core.NewLockScreen(m.width, m.availableHeight, "Running Demo...", m.Theme)
+					m.lockScreen = core.NewLockScreen(
+						m.width,
+						m.availableHeight,
+						"Running Demo...",
+						m.Theme,
+					)
 					m.lockScreenJustCreated = true
 					return m, m.runDemoCmd()
 				}
@@ -460,6 +466,9 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			m.state = executingRune
 			m.keys = executingRuneKeys()
 			m.StatusBar.Content = "Executing rune..."
+			m.executingRuneName = selectedItem.Rune.Name // Store the name
+			// Initialize the logs view here, *before* executing the command
+			m.logsView = core.NewLogsView(m.width/3, m.availableHeight, m.Theme)
 			m.recalculateSizes()
 			return m, tea.Batch(m.StatusBar.StartSpinner(), m.executeSpecificRuneCmd(selectedItem.Rune))
 
@@ -534,7 +543,6 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			},
 			m.deleteRuneCmd,
 		)
-
 
 	case gotSpellbookMsg: // This case is now primarily for refreshing the data
 		m.spellbook = &msg.spellbook
@@ -613,11 +621,27 @@ func updateExecutingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		m.StatusBar.StopSpinner()
 		m.StatusBar.Content = "Execution finished"
 		m.StatusBar.Level = statusbar.LevelSuccess
-		// Initialize the logs view here
-		if m.logsView == nil {
-			m.logsView = core.NewLogsView(m.width/3, m.availableHeight, m.Theme)
+		if m.logsView != nil {
+			// Check if the output contains the failure message from the runner
+			if strings.Contains(msg.output, "Command failed:") {
+				m.logsView.AddLog(log.ErrorLevel, "Execution failed", "rune", m.executingRuneName)
+			} else {
+				m.logsView.AddLog(log.DebugLevel, "Execution finished", "rune", m.executingRuneName)
+			}
 		}
 		cmds = append(cmds, clearStatusCmd())
+	case executeNextCommandMsg:
+		if m.logsView != nil {
+			if m.currentCommandIndex == 0 {
+				m.logsView.AddLog(log.DebugLevel, "Execution started", "rune", m.executingRuneName)
+			}
+
+			if m.currentCommandIndex < len(m.commandsToExecute) {
+				command := m.commandsToExecute[m.currentCommandIndex]
+				m.logsView.AddLog(log.InfoLevel, "Executing command", "cmd", command)
+			}
+		}
+		cmds = append(cmds, m.executeNextCommandCmd)
 	}
 
 	m.executingViewport, cmd = m.executingViewport.Update(msg)
@@ -634,7 +658,12 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	handleSubmit := func() {
 		isUpdating := m.previousState == showingRunes
 		if isUpdating {
-			m.lockScreen = core.NewLockScreen(m.width, m.availableHeight, "Updating Rune...", m.Theme)
+			m.lockScreen = core.NewLockScreen(
+				m.width,
+				m.availableHeight,
+				"Updating Rune...",
+				m.Theme,
+			)
 			m.lockScreenJustCreated = true
 			cmds = append(cmds, tea.Sequence(
 				func() tea.Msg {
@@ -805,16 +834,10 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 // updateInputs passes messages to the textinput components.
 func (m *Model) updateInputs(msg tea.Msg) tea.Cmd {
-	// cmds := make([]tea.Cmd, len(m.inputs))
-	// for i := range m.inputs {
-	// m.inputs[i].Model, cmds[i] = m.inputs[i].Model.Update(msg)
-	// }
-	// return tea.Batch(cmds...)
 	if m.focusIndex >= len(m.inputs) {
 		return nil
 	}
 	var cmd tea.Cmd
-	// Solo actualizamos el input que tiene el foco.
 	m.inputs[m.focusIndex], cmd = m.inputs[m.focusIndex].Update(msg)
 	return cmd
 }
@@ -1061,6 +1084,9 @@ func updateShowingHistory(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					m.keys = executingRuneKeys()
 					m.StatusBar.Content = "Executing rune from history..."
 					m.StatusBar.Level = statusbar.LevelInfo
+					m.executingRuneName = selectedRune.Name // Store the name
+					// Initialize the logs view here as well
+					m.logsView = core.NewLogsView(m.width/3, m.availableHeight, m.Theme)
 					return m, tea.Batch(m.StatusBar.StartSpinner(), m.executeSpecificRuneCmd(*selectedRune))
 				}
 				// Optional: Handle case where rune is not found anymore
@@ -1126,4 +1152,3 @@ func updateDemo(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
-

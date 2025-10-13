@@ -55,6 +55,7 @@ const (
 type (
 	gotSpellbookMsg struct{ spellbook Spellbook }
 	runeCreatedMsg  struct{}
+	executeNextCommandMsg struct{}
 	runeExecutedMsg struct{ output string }
 	gotLoegsMsg     struct{ loegs map[string]string }
 	loegSetMsg      struct{}
@@ -68,7 +69,7 @@ type (
 	demoFinishedMsg   struct{}
 	runDemoStepMsg    struct{}
 	confirmedDeleteRuneMsg struct{}
-	errMsg         struct{ err error }
+	errMsg                 struct{ err error }
 )
 
 
@@ -118,13 +119,18 @@ type Model struct {
 	popup                   *core.PopupModel
 	demoStep                int
 	demoCounter             int
-	width             int
-	height            int
-	StatusBar         statusbar.StatusBar
-	Theme             *styles.Theme
-	Version           string
-	SpellbookString   string
-	program           *tea.Program
+	width                   int
+	height                  int
+	StatusBar               statusbar.StatusBar
+	Theme                   *styles.Theme
+	Version                 string
+	SpellbookString         string
+
+	// For sequential command execution
+	commandsToExecute   []string
+	currentCommandIndex int
+	aggregatedOutput    string
+	executingRuneName   string
 }
 
 // NewModel creates a new application model.
@@ -325,7 +331,7 @@ func (m *Model) executeRuneCmd() tea.Msg {
 	return m.executeSpecificRuneCmd(selectedItem.Rune)()
 }
 
-// executeSpecificRuneCmd creates a tea.Cmd that saves and executes a specific rune.
+// executeSpecificRuneCmd sets up the model for sequential command execution.
 func (m *Model) executeSpecificRuneCmd(r types.Rune) tea.Cmd {
 	return func() tea.Msg {
 		// Save to history first
@@ -333,15 +339,35 @@ func (m *Model) executeSpecificRuneCmd(r types.Rune) tea.Cmd {
 			return errMsg{err}
 		}
 
-		// Then execute the commands
-		output, err := m.localRunner.ExecuteCommands(r.Commands)
-		if err != nil {
-			// Even if execution fails, we return the output to the user.
-			// The history entry is already saved.
-			return runeExecutedMsg{output: output}
-		}
-		return runeExecutedMsg{output: output}
+		// Set up the state for sequential execution
+		m.commandsToExecute = r.Commands
+		m.currentCommandIndex = 0
+		m.aggregatedOutput = ""
+
+		// Start the execution of the first command
+		return executeNextCommandMsg{}
 	}
+}
+
+// executeNextCommandCmd executes the current command in the sequence.
+func (m *Model) executeNextCommandCmd() tea.Msg {
+	if m.currentCommandIndex >= len(m.commandsToExecute) {
+		// No more commands to run, signal completion
+		return runeExecutedMsg{output: m.aggregatedOutput}
+	}
+
+	command := m.commandsToExecute[m.currentCommandIndex]
+	output, err := m.localRunner.ExecuteCommand(command)
+	m.aggregatedOutput += output + "\n"
+	m.currentCommandIndex++
+
+	if err != nil {
+		// If a command fails, stop the sequence and report the error
+		return runeExecutedMsg{output: m.aggregatedOutput}
+	}
+
+	// Continue to the next command
+	return executeNextCommandMsg{}
 }
 
 // getHistoryCmd retrieves the execution history from the database.
@@ -471,7 +497,7 @@ func (m *Model) deleteRuneCmd() tea.Msg {
 }
 
 func (m *Model) SetProgram(p *tea.Program) {
-	m.program = p
+	// This function is no longer needed and will be removed.
 }
 
 // Init is called once when the application starts.

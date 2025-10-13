@@ -34,11 +34,7 @@ func NewLogsView(
 	vp.SetHeight(availableHeight)
 	vp.SetWidth(width)
 
-	// Dummy messages
-	logger.Info("Initializing log view...")
-	logger.Info("Loading resources...")
-	logger.Warn("This is a dummy warning message.")
-	logger.Info("Ready.")
+	logger.Debug("Initializing log view...")
 
 	vp.SetContent(logOutput.String())
 
@@ -68,8 +64,6 @@ func (m *LogsViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *LogsViewModel) View() string {
 	m.viewport.Style = lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(m.theme.Accent).
 		Padding(0, 1)
 
 	return lipgloss.Place(
@@ -86,4 +80,22 @@ func (m *LogsViewModel) Resize(width, availableHeight int) {
 	m.height = availableHeight
 	m.viewport.SetWidth(width)
 	m.viewport.SetHeight(availableHeight)
+}
+
+// AddLog adds a new line to the logs view with a specific log level and key-value pairs.
+func (m *LogsViewModel) AddLog(level log.Level, msg string, keyvals ...any) {
+	switch level {
+	case log.DebugLevel:
+		m.logger.Debug(msg, keyvals...)
+	case log.InfoLevel:
+		m.logger.Info(msg, keyvals...)
+	case log.WarnLevel:
+		m.logger.Warn(msg, keyvals...)
+	case log.ErrorLevel:
+		m.logger.Error(msg, keyvals...)
+	case log.FatalLevel:
+		m.logger.Fatal(msg, keyvals...)
+	}
+	m.viewport.SetContent(m.logOutput.String())
+	m.viewport.GotoBottom()
 }
