@@ -460,6 +460,7 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			m.state = executingRune
 			m.keys = executingRuneKeys()
 			m.StatusBar.Content = "Executing rune..."
+			m.recalculateSizes()
 			return m, tea.Batch(m.StatusBar.StartSpinner(), m.executeSpecificRuneCmd(selectedItem.Rune))
 
 		case key.Matches(msg, m.keys.Delete):
@@ -586,6 +587,11 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 // updateExecutingRune handles updates while a rune is running.
 func updateExecutingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
+	var (
+		cmd  tea.Cmd
+		cmds []tea.Cmd
+	)
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
@@ -607,9 +613,13 @@ func updateExecutingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		m.StatusBar.StopSpinner()
 		m.StatusBar.Content = "Execution finished"
 		m.StatusBar.Level = statusbar.LevelSuccess
-		return m, clearStatusCmd()
+		cmds = append(cmds, clearStatusCmd())
 	}
-	return m, nil
+
+	m.executingViewport, cmd = m.executingViewport.Update(msg)
+	cmds = append(cmds, cmd)
+
+	return m, tea.Batch(cmds...)
 }
 
 // updateEditingRune handles the form for updating an existing rune.

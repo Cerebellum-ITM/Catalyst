@@ -105,6 +105,7 @@ type Model struct {
 	spellbook         *Spellbook // Our in-memory cache
 	viewportSpellBook viewport.Model
 	formViewport      viewport.Model
+	executingViewport viewport.Model
 	loegKeys          []string               // For ordered display and selection
 	history           []db.HistoryEntry      // For the history view
 	inputs            []core.CustomTextInput // For the "Create Rune" form
@@ -160,6 +161,7 @@ func NewModel(cfg *config.Config, db *db.Database, version string) Model {
 		SpellbookString:   fmt.Sprintf("Main Menu - %s", utils.TruncatePath(pwd, 2)),
 		viewportSpellBook: viewport.New(),
 		formViewport:      viewport.New(),
+		executingViewport: viewport.New(),
 	}
 
 	// Initialize text inputs for the create rune form
@@ -231,6 +233,9 @@ func (m *Model) recalculateSizes(options ...RecalcOption) {
 		}
 		m.formViewport.SetWidth(m.width / 2)
 		m.formViewport.SetHeight(availableHeightForMainContent)
+	case executingRune:
+		m.executingViewport.SetWidth(m.width * 2 / 3)
+		m.executingViewport.SetHeight(availableHeightForMainContent)
 	default:
 		m.viewportSpellBook.SetWidth(m.width * 3 / 4)
 		m.viewportSpellBook.SetHeight(availableHeightForMainContent)

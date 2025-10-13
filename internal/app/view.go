@@ -208,6 +208,47 @@ func (m *Model) previewFooter(state string) string {
 	)
 }
 
+func (m *Model) executingRuneHeaderLeft(state string) string {
+	return m.buildStyledBorder(
+		state,
+		"Commands",
+		HeaderStyle,
+		(m.width/3),
+		AlignHeader,
+	)
+}
+
+func (m *Model) executingRuneFooterLeft(state string) string {
+	return m.buildStyledBorder(
+		state,
+		"",
+		FooterStyle,
+		(m.width/3),
+		AlignFooter,
+	)
+}
+
+func (m *Model) executingRuneHeaderRight(state string) string {
+	return m.buildStyledBorder(
+		state,
+		"Output",
+		HeaderStyle,
+		(m.width*2/3),
+		AlignHeader,
+	)
+}
+
+func (m *Model) executingRuneFooterRight(state string) string {
+	info := fmt.Sprintf("%3.f%%", m.executingViewport.ScrollPercent()*100)
+	return m.buildStyledBorder(
+		state,
+		info,
+		FooterStyle,
+		(m.width*2/3),
+		AlignFooter,
+	)
+}
+
 func formatRuneDetail(rune types.Rune) string {
 	var md strings.Builder
 	md.WriteString(fmt.Sprintf("# %s\n", rune.Name))
@@ -417,13 +458,36 @@ func (m *Model) View() string {
 		s.WriteString(stateView)
 
 	case executingRune:
-		selectedRune := m.spellbook.Runes[m.cursor]
-		s.WriteString(fmt.Sprintf("Executing Rune: %s\n\n", highlight.Render(selectedRune.Name)))
-		s.WriteString(m.output)
-		// Add a blinking cursor or spinner here in a real app to show activity.
-		if m.output == "" {
-			s.WriteString("Running commands...")
-		}
+		headerLeft := m.executingRuneHeaderLeft("blur")
+		footerLeft := m.executingRuneFooterLeft("blur")
+		headerRight := m.executingRuneHeaderRight("focus")
+		footerRight := m.executingRuneFooterRight("focus")
+		extraContentHeight := lipgloss.Height(headerRight) + lipgloss.Height(footerRight)
+		m.recalculateSizes(WithExtraContent(extraContentHeight))
+
+		// For now, the left side is empty, but we set it up for future use.
+		leftSideContent := lipgloss.JoinVertical(
+			lipgloss.Left,
+			headerLeft,
+			lipgloss.NewStyle().Height(m.availableHeight).Render(""), // Empty for now
+			footerLeft,
+		)
+
+		m.executingViewport.SetContent(m.output)
+
+		rightSideContent := lipgloss.JoinVertical(
+			lipgloss.Left,
+			headerRight,
+			m.executingViewport.View(),
+			footerRight,
+		)
+
+		stateView = lipgloss.JoinHorizontal(
+			lipgloss.Left,
+			leftSideContent,
+			rightSideContent,
+		)
+		s.WriteString(stateView)
 
 	case showingLoegs:
 		s.WriteString("Loegs (Environment Variables):\n\n")
