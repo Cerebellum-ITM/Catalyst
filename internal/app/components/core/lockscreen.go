@@ -9,9 +9,9 @@ import (
 	"github.com/charmbracelet/bubbles/v2/spinner"
 	"github.com/charmbracelet/bubbles/v2/viewport"
 	tea "github.com/charmbracelet/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/lipgloss/v2"
-	"github.com/charmbracelet/log"
-	"github.com/muesli/termenv"
+	"github.com/charmbracelet/log/v2"
 )
 
 type ProgressUpdateMsg struct {
@@ -38,7 +38,7 @@ func NewLockScreen(
 ) *LockScreenModel {
 	logOutput := new(bytes.Buffer)
 	logger := log.New(logOutput)
-	logger.SetColorProfile(termenv.TrueColor)
+	logger.SetColorProfile(colorprofile.TrueColor)
 	logger.SetLevel(log.DebugLevel)
 
 	pr := progress.New(
