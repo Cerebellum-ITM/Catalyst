@@ -113,6 +113,7 @@ type Model struct {
 	output                  string // To store output from executed runes
 	err                     error
 	lockScreen              *core.LockScreenModel
+	logsView                *core.LogsViewModel
 	lockScreenJustCreated   bool
 	popup                   *core.PopupModel
 	demoStep                int
@@ -234,6 +235,9 @@ func (m *Model) recalculateSizes(options ...RecalcOption) {
 		m.formViewport.SetWidth(m.width / 2)
 		m.formViewport.SetHeight(availableHeightForMainContent)
 	case executingRune:
+		if m.logsView != nil {
+			m.logsView.Resize(m.width/3, availableHeightForMainContent)
+		}
 		m.executingViewport.SetWidth(m.width * 2 / 3)
 		m.executingViewport.SetHeight(availableHeightForMainContent)
 	default:

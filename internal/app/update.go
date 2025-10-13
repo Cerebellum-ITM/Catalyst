@@ -613,6 +613,10 @@ func updateExecutingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		m.StatusBar.StopSpinner()
 		m.StatusBar.Content = "Execution finished"
 		m.StatusBar.Level = statusbar.LevelSuccess
+		// Initialize the logs view here
+		if m.logsView == nil {
+			m.logsView = core.NewLogsView(m.width/3, m.availableHeight, m.Theme)
+		}
 		cmds = append(cmds, clearStatusCmd())
 	}
 

@@ -466,12 +466,22 @@ func (m *Model) View() string {
 		m.recalculateSizes(WithExtraContent(extraContentHeight))
 
 		// For now, the left side is empty, but we set it up for future use.
-		leftSideContent := lipgloss.JoinVertical(
-			lipgloss.Left,
-			headerLeft,
-			lipgloss.NewStyle().Height(m.availableHeight).Render(""), // Empty for now
-			footerLeft,
-		)
+		var leftSideContent string
+		if m.logsView != nil {
+			leftSideContent = lipgloss.JoinVertical(
+				lipgloss.Left,
+				headerLeft,
+				m.logsView.View(),
+				footerLeft,
+			)
+		} else {
+			leftSideContent = lipgloss.JoinVertical(
+				lipgloss.Left,
+				headerLeft,
+				lipgloss.NewStyle().Height(m.availableHeight).Render(""), // Empty for now
+				footerLeft,
+			)
+		}
 
 		m.executingViewport.SetContent(m.output)
 
