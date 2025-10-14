@@ -334,7 +334,7 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					utils.ResetListFilterState(&m.runesList)
 
 					m.state = showingRunes
-					m.focusedElement = formElement
+					m.focusedElement = listElement
 					m.keys = viewingRunesKeys()
 					m.StatusBar.Content = "Viewing Runes"
 
