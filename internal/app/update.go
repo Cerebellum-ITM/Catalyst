@@ -620,6 +620,12 @@ func updateExecutingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				m.StatusBar.Level = statusbar.LevelSuccess
 				return m, clearStatusCmd()
 			}
+			if m.focusedElement == outputViewportElement {
+				clipboard.Write(clipboard.FmtText, []byte(m.output))
+				m.StatusBar.Content = "Output copied to clipboard!"
+				m.StatusBar.Level = statusbar.LevelSuccess
+				return m, clearStatusCmd()
+			}
 		case key.Matches(msg, m.keys.Esc), key.Matches(msg, m.keys.Enter):
 			if m.currentCancelFunc != nil {
 				m.currentCancelFunc()

@@ -203,6 +203,9 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 	if k.Delete.Enabled() {
 		b = append(b, k.Delete)
 	}
+	if k.Yank.Enabled() {
+		b = append(b, k.Yank)
+	}
 	if k.ClearFilter.Enabled() {
 		b = append(b, k.ClearFilter)
 	}
