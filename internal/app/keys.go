@@ -27,9 +27,11 @@ type KeyMap struct {
 	NextField     key.Binding
 	AddCommand    key.Binding
 	RemoveCommand key.Binding
+	MoveCmdUp     key.Binding
+	MoveCmdDown   key.Binding
 	submit        key.Binding
-	Cancel      key.Binding
-	Yank        key.Binding
+	Cancel        key.Binding
+	Yank          key.Binding
 }
 
 func viewPortKeys() KeyMap {
@@ -103,6 +105,14 @@ func formKeys() KeyMap {
 		RemoveCommand: key.NewBinding(
 			key.WithKeys("ctrl+r"),
 			key.WithHelp("ctrl+r", "Remove cmd"),
+		),
+		MoveCmdUp: key.NewBinding(
+			key.WithKeys("ctrl+w"),
+			key.WithHelp("ctrl+w", "Move cmd up"),
+		),
+		MoveCmdDown: key.NewBinding(
+			key.WithKeys("ctrl+s"),
+			key.WithHelp("ctrl+s", "Move cmd down"),
 		),
 		Up: key.NewBinding(
 			key.WithKeys("up"),
@@ -188,6 +198,13 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 	if k.Down.Enabled() {
 		b = append(b, k.Down)
 	}
+	if k.MoveCmdUp.Enabled() {
+		b = append(b, k.MoveCmdUp)
+	}
+	if k.MoveCmdDown.Enabled() {
+		b = append(b, k.MoveCmdDown)
+	}
+
 	if k.Enter.Enabled() {
 		b = append(b, k.Enter)
 	}
@@ -234,4 +251,3 @@ func viewingHistoryKeys() KeyMap {
 		Help:       key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 	}
 }
-

@@ -783,6 +783,8 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			}
 			m.keys.AddCommand.SetEnabled(m.focusIndex >= 2)
 			m.keys.RemoveCommand.SetEnabled(m.focusIndex >= 2)
+			m.keys.MoveCmdUp.SetEnabled(m.focusIndex > 2)
+			m.keys.MoveCmdDown.SetEnabled(m.focusIndex >= 2 && m.focusIndex < len(m.inputs)-1)
 			navCmds := make([]tea.Cmd, len(m.inputs))
 			for i := range m.inputs {
 				if i == m.focusIndex {
@@ -800,6 +802,8 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			}
 			m.keys.AddCommand.SetEnabled(m.focusIndex >= 2)
 			m.keys.RemoveCommand.SetEnabled(m.focusIndex >= 2)
+			m.keys.MoveCmdUp.SetEnabled(m.focusIndex >= 2 && m.focusIndex > 2)
+			m.keys.MoveCmdDown.SetEnabled(m.focusIndex >= 2 && m.focusIndex < len(m.inputs)-1)
 			navCmds := make([]tea.Cmd, len(m.inputs))
 			for i := range m.inputs {
 				if i == m.focusIndex {
@@ -809,6 +813,28 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				}
 			}
 			cmds = append(cmds, tea.Batch(navCmds...))
+
+		case key.Matches(keyMsg, m.keys.MoveCmdUp):
+			if m.focusIndex > 2 {
+				m.inputs[m.focusIndex], m.inputs[m.focusIndex-1] = m.inputs[m.focusIndex-1], m.inputs[m.focusIndex]
+				m.focusIndex--
+				for i := 2; i < len(m.inputs); i++ {
+					m.inputs[i].Name = fmt.Sprintf("Cmd %d", i-1)
+				}
+				m.keys.MoveCmdUp.SetEnabled(m.focusIndex > 2)
+				m.keys.MoveCmdDown.SetEnabled(m.focusIndex < len(m.inputs)-1)
+			}
+
+		case key.Matches(keyMsg, m.keys.MoveCmdDown):
+			if m.focusIndex >= 2 && m.focusIndex < len(m.inputs)-1 {
+				m.inputs[m.focusIndex], m.inputs[m.focusIndex+1] = m.inputs[m.focusIndex+1], m.inputs[m.focusIndex]
+				m.focusIndex++
+				for i := 2; i < len(m.inputs); i++ {
+					m.inputs[i].Name = fmt.Sprintf("Cmd %d", i-1)
+				}
+				m.keys.MoveCmdUp.SetEnabled(m.focusIndex > 2)
+				m.keys.MoveCmdDown.SetEnabled(m.focusIndex < len(m.inputs)-1)
+			}
 
 		case key.Matches(keyMsg, m.keys.AddCommand):
 			if m.focusIndex >= 2 {
