@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	"catalyst/internal/types"
@@ -596,10 +595,7 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 // updateExecutingRune handles updates while a rune is running.
 func updateExecutingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
-	var (
-		cmd  tea.Cmd
-		cmds []tea.Cmd
-	)
+	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -611,14 +607,20 @@ func updateExecutingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				m.focusedElement = logsViewportElement
 			}
 			return m, nil
-
+		case key.Matches(msg, m.keys.Cancel):
+			if m.currentCancelFunc != nil {
+				m.currentCancelFunc()
+			}
+			return m, nil
 		case key.Matches(msg, m.keys.Esc), key.Matches(msg, m.keys.Enter):
-			// Return to the previous state (either showingRunes or showingHistory)
+			if m.currentCancelFunc != nil {
+				m.currentCancelFunc()
+			}
 			if m.previousState == showingHistory {
 				m.state = showingHistory
-				// m.keys = viewingHistoryKeys() // TODO
+				m.keys = viewingHistoryKeys()
 				m.StatusBar.Content = "Viewing History"
-				return m, m.getHistoryCmd // Refresh history view
+				return m, m.getHistoryCmd
 			}
 			m.state = showingRunes
 			m.keys = viewingRunesKeys()
@@ -626,45 +628,53 @@ func updateExecutingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// Pass navigation keys to the focused viewport
-		if m.focusedElement == logsViewportElement && m.logsView != nil {
-			var logsModel tea.Model
-			logsModel, cmd = m.logsView.Update(msg)
-			if newLogsModel, ok := logsModel.(*core.LogsViewModel); ok {
-				m.logsView = newLogsModel
-			}
-			cmds = append(cmds, cmd)
-		} else if m.focusedElement == outputViewportElement {
-			m.executingViewport, cmd = m.executingViewport.Update(msg)
-			cmds = append(cmds, cmd)
-		}
-
-	case runeExecutedMsg:
-		m.output = msg.output
-		m.StatusBar.StopSpinner()
-		m.StatusBar.Content = "Execution finished"
-		m.StatusBar.Level = statusbar.LevelSuccess
-		if m.logsView != nil {
-			// Check if the output contains the failure message from the runner
-			if strings.Contains(msg.output, "Command failed:") {
-				m.logsView.AddLog(log.ErrorLevel, "Execution failed", "rune", m.executingRuneName)
-			} else {
-				m.logsView.AddLog(log.DebugLevel, "Execution finished", "rune", m.executingRuneName)
-			}
-		}
-		cmds = append(cmds, clearStatusCmd())
-	case executeNextCommandMsg:
+	case runNextCommandMsg:
 		if m.logsView != nil {
 			if m.currentCommandIndex == 0 {
 				m.logsView.AddLog(log.DebugLevel, "Execution started", "rune", m.executingRuneName)
 			}
-
 			if m.currentCommandIndex < len(m.commandsToExecute) {
 				command := m.commandsToExecute[m.currentCommandIndex]
 				m.logsView.AddLog(log.InfoLevel, "Executing command", "cmd", command)
 			}
 		}
-		cmds = append(cmds, m.executeNextCommandCmd)
+		return m, m.executeNextCommandCmd()
+
+	case types.RuneCommandOutputMsg:
+		m.output += msg.Output
+		m.executingViewport.SetContent(m.output)
+		m.executingViewport.GotoBottom()
+		return m, waitForOutput(m.msgChan)
+
+	case types.RuneCommandFinished:
+		m.currentCancelFunc = nil // Command is done.
+		if msg.Err != nil {
+			m.logsView.AddLog(log.ErrorLevel, "Command failed", "error", msg.Err)
+		}
+
+		m.currentCommandIndex++
+		if m.currentCommandIndex < len(m.commandsToExecute) {
+			return m, func() tea.Msg { return runNextCommandMsg{} }
+		} else {
+			m.StatusBar.StopSpinner()
+			m.StatusBar.Content = "Execution finished"
+			m.StatusBar.Level = statusbar.LevelSuccess
+			m.logsView.AddLog(log.DebugLevel, "Execution finished", "rune", m.executingRuneName)
+			return m, clearStatusCmd()
+		}
+	}
+
+	var cmd tea.Cmd
+	var logsModel tea.Model
+	if m.focusedElement == logsViewportElement && m.logsView != nil {
+		logsModel, cmd = m.logsView.Update(msg)
+		if newLogsModel, ok := logsModel.(*core.LogsViewModel); ok {
+			m.logsView = newLogsModel
+		}
+		cmds = append(cmds, cmd)
+	} else {
+		m.executingViewport, cmd = m.executingViewport.Update(msg)
+		cmds = append(cmds, cmd)
 	}
 
 	return m, tea.Batch(cmds...)

@@ -28,6 +28,7 @@ type KeyMap struct {
 	AddCommand    key.Binding
 	RemoveCommand key.Binding
 	submit        key.Binding
+	Cancel      key.Binding
 }
 
 func viewPortKeys() KeyMap {
@@ -123,6 +124,7 @@ func executingRuneKeys() KeyMap {
 		Esc:         key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
 		GlobalQuit:  key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "quit")),
 		Help:        key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+		Cancel:      key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "cancel command")),
 	}
 }
 
@@ -216,3 +218,15 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 	}
 	return [][]key.Binding{b}
 }
+
+func viewingHistoryKeys() KeyMap {
+	return KeyMap{
+		Up:         key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
+		Down:       key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
+		Enter:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "run")),
+		Esc:        key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
+		GlobalQuit: key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "quit")),
+		Help:       key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+	}
+}
+

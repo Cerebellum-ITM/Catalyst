@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -57,8 +58,7 @@ const (
 type (
 	gotSpellbookMsg struct{ spellbook Spellbook }
 	runeCreatedMsg  struct{}
-	executeNextCommandMsg struct{}
-	runeExecutedMsg struct{ output string }
+	runNextCommandMsg struct{}
 	gotLoegsMsg     struct{ loegs map[string]string }
 	loegSetMsg      struct{}
 	loegRemovedMsg  struct{}
@@ -131,8 +131,9 @@ type Model struct {
 	// For sequential command execution
 	commandsToExecute   []string
 	currentCommandIndex int
-	aggregatedOutput    string
+	currentCancelFunc   context.CancelFunc
 	executingRuneName   string
+	msgChan             chan tea.Msg
 }
 
 // NewModel creates a new application model.
@@ -336,41 +337,54 @@ func (m *Model) executeRuneCmd() tea.Msg {
 // executeSpecificRuneCmd sets up the model for sequential command execution.
 func (m *Model) executeSpecificRuneCmd(r types.Rune) tea.Cmd {
 	return func() tea.Msg {
-		// Save to history first
 		if err := m.db.AddHistoryEntry(r.Name, m.spellbook.Name); err != nil {
 			return errMsg{err}
 		}
-
-		// Set up the state for sequential execution
 		m.commandsToExecute = r.Commands
 		m.currentCommandIndex = 0
-		m.aggregatedOutput = ""
-
-		// Start the execution of the first command
-		return executeNextCommandMsg{}
+		m.output = "" // Clear previous output
+		m.executingViewport.SetContent("") // Clear previous output
+		return runNextCommandMsg{}
 	}
 }
 
-// executeNextCommandCmd executes the current command in the sequence.
-func (m *Model) executeNextCommandCmd() tea.Msg {
+
+// executeNextCommandCmd starts a command and returns a command that listens for its output.
+func (m *Model) executeNextCommandCmd() tea.Cmd {
 	if m.currentCommandIndex >= len(m.commandsToExecute) {
-		// No more commands to run, signal completion
-		return runeExecutedMsg{output: m.aggregatedOutput}
+		return func() tea.Msg { return types.RuneCommandFinished{Err: nil} }
 	}
 
 	command := m.commandsToExecute[m.currentCommandIndex]
-	output, err := m.localRunner.ExecuteCommand(command)
-	m.aggregatedOutput += output + "\n"
-	m.currentCommandIndex++
+	ctx, cancel := context.WithCancel(context.Background())
+	m.currentCancelFunc = cancel
 
-	if err != nil {
-		// If a command fails, stop the sequence and report the error
-		return runeExecutedMsg{output: m.aggregatedOutput}
-	}
+	m.msgChan = make(chan tea.Msg)
+	go func() {
+		defer close(m.msgChan)
+		m.localRunner.ExecuteCommand(ctx, command, m.msgChan)
+	}()
 
-	// Continue to the next command
-	return executeNextCommandMsg{}
+	return waitForOutput(m.msgChan)
 }
+
+// waitForOutput is a tea.Cmd that waits for the next message from a channel.
+func waitForOutput(ch <-chan tea.Msg) tea.Cmd {
+	return func() tea.Msg {
+		// This will block until a message is available.
+		// Bubble Tea will handle this in its runtime.
+		msg, ok := <-ch
+		if !ok {
+			// Channel was closed, which means the command is done.
+			// We shouldn't get here if the runner sends RuneCommandFinished,
+			// but as a safeguard:
+			return types.RuneCommandFinished{Err: nil}
+		}
+		return msg
+	}
+}
+
+
 
 // getHistoryCmd retrieves the execution history from the database.
 func (m *Model) getHistoryCmd() tea.Msg {
