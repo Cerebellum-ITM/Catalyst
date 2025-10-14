@@ -78,7 +78,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Only return early if the message was NOT a completion signal.
 		// Completion signals need to fall through to the main state logic.
 		switch msg.(type) {
-		case gotSpellbookMsg, errMsg, demoFinishedMsg, tea.WindowSizeMsg:
+
 			// Fall through
 		default:
 			return m, tea.Batch(cmds...)
@@ -135,8 +135,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		_, stateCmd = updateEditingRune(msg, m)
 	case showingHistory:
 		_, stateCmd = updateShowingHistory(msg, m)
-	case demo:
-		_, stateCmd = updateDemo(msg, m)
 	default:
 		_, stateCmd = updateInitial(msg, m)
 	}
@@ -393,16 +391,7 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					m.state = showingHistory
 					m.StatusBar.Content = "Viewing History"
 					return m, m.getHistoryCmd
-				case 4: // Demo Lock Screen
-					m.state = demo
-					m.lockScreen = core.NewLockScreen(
-						m.width,
-						m.availableHeight,
-						"Running Demo...",
-						m.Theme,
-					)
-					m.lockScreenJustCreated = true
-					return m, m.runDemoCmd()
+
 				}
 			}
 		}
@@ -743,7 +732,6 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		m.keys = viewingRunesKeys()
 		m.cursor = 0
 		utils.ResetListFilterState(&m.runesList)
-
 
 		// The lock screen is still active. Update it to show the final success
 		// message, and then schedule it to close after a short delay.
@@ -1177,44 +1165,3 @@ func updateShowingHistory(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// updateDemo handles the lock screen demo.
-func updateDemo(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
-	switch msg.(type) {
-	case runDemoStepMsg:
-		steps := []struct {
-			percent float64
-			log     string
-		}{
-			{0.0, "Starting demo..."},
-			{0.25, "Step 1/4 complete"},
-			{0.5, "Step 2/4 complete"},
-			{0.75, "Step 3/4 complete"},
-			{1.0, "Step 4/4 complete"},
-		}
-
-		if m.demoStep < len(steps) {
-			step := steps[m.demoStep]
-			m.demoStep++
-			return m, tea.Batch(
-				func() tea.Msg {
-					return core.ProgressUpdateMsg{Percent: step.percent, LogLine: step.log}
-				},
-				tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
-					return runDemoStepMsg{}
-				}),
-			)
-		}
-		// Demo finished
-		return m, tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
-			return demoFinishedMsg{}
-		})
-
-	case demoFinishedMsg:
-		m.state = ready
-		m.lockScreen = nil
-		m.StatusBar.Content = "Demo finished"
-		m.StatusBar.Level = statusbar.LevelSuccess
-		return m, clearStatusCmd()
-	}
-	return m, nil
-}

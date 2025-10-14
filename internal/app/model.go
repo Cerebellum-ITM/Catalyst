@@ -41,7 +41,6 @@ const (
 	editingRune
 	showingHistory
 	errState
-	demo
 )
 
 type focusableElement int
@@ -68,8 +67,7 @@ type (
 	noChangesMsg    struct{} // Message to indicate no changes were made
 	clearStatusMsg struct{}
 	ClosePopupMsg  core.ClosePopupMsg
-	demoFinishedMsg   struct{}
-	runDemoStepMsg    struct{}
+
 	confirmedDeleteRuneMsg struct{}
 	errMsg                 struct{ err error }
 )
@@ -119,8 +117,6 @@ type Model struct {
 	logsView                *core.LogsViewModel
 	lockScreenJustCreated   bool
 	popup                   *core.PopupModel
-	demoStep                int
-	demoCounter             int
 	width                   int
 	height                  int
 	StatusBar               statusbar.StatusBar
@@ -525,9 +521,3 @@ func (m Model) Init() tea.Cmd {
 	)
 }
 
-func (m *Model) runDemoCmd() tea.Cmd {
-	m.demoStep = 0
-	return func() tea.Msg {
-		return runDemoStepMsg{}
-	}
-}
