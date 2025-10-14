@@ -29,6 +29,7 @@ type KeyMap struct {
 	RemoveCommand key.Binding
 	submit        key.Binding
 	Cancel      key.Binding
+	Yank        key.Binding
 }
 
 func viewPortKeys() KeyMap {
@@ -125,6 +126,7 @@ func executingRuneKeys() KeyMap {
 		GlobalQuit:  key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "quit")),
 		Help:        key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		Cancel:      key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "cancel command")),
+		Yank:        key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "yank logs")),
 	}
 }
 

@@ -19,6 +19,7 @@ import (
 	"github.com/charmbracelet/bubbles/v2/list"
 	"github.com/charmbracelet/bubbles/v2/textinput"
 	tea "github.com/charmbracelet/bubbletea/v2"
+	"golang.design/x/clipboard"
 )
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -612,6 +613,13 @@ func updateExecutingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				m.currentCancelFunc()
 			}
 			return m, nil
+		case key.Matches(msg, m.keys.Yank):
+			if m.focusedElement == logsViewportElement && m.logsView != nil {
+				clipboard.Write(clipboard.FmtText, []byte(m.logsView.GetContent()))
+				m.StatusBar.Content = "Logs copied to clipboard!"
+				m.StatusBar.Level = statusbar.LevelSuccess
+				return m, clearStatusCmd()
+			}
 		case key.Matches(msg, m.keys.Esc), key.Matches(msg, m.keys.Enter):
 			if m.currentCancelFunc != nil {
 				m.currentCancelFunc()

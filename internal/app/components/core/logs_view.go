@@ -2,7 +2,6 @@ package core
 
 import (
 	"bytes"
-	"time"
 
 	"catalyst/internal/app/styles"
 
@@ -30,7 +29,7 @@ func NewLogsView(
 	logger := log.NewWithOptions(logOutput, log.Options{
 		ReportCaller:    false,
 		ReportTimestamp: true,
-		TimeFormat:      time.Kitchen,
+		TimeFormat:      "15:04:05.000",
 	})
 	logger.SetLevel(log.DebugLevel)
 	logger.SetColorProfile(colorprofile.TrueColor)
@@ -82,6 +81,10 @@ func (m *LogsViewModel) View() string {
 		lipgloss.Top,
 		m.viewport.View(),
 	)
+}
+
+func (m *LogsViewModel) GetContent() string {
+	return m.logOutput.String()
 }
 
 func (m *LogsViewModel) Resize(width, availableHeight int) {
