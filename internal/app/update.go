@@ -723,8 +723,8 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case gotSpellbookMsg:
-		// After a successful create/update, we get the spellbook.
-		// Now, we need to refresh the rune list with the new data.
+		// The rune has been updated and the cache has been refreshed.
+		// Now we update the model with the new data.
 		m.spellbook = &msg.spellbook
 		items := make([]list.Item, len(m.spellbook.Runes))
 		for i, r := range m.spellbook.Runes {
@@ -732,29 +732,24 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		}
 		m.runesList.SetItems(items)
 
-		// And then transition back to the rune list view.
+		// Transition the app state back to the rune list.
 		m.state = showingRunes
 		m.keys = viewingRunesKeys()
 		m.cursor = 0
-
-		finalMsg := "Rune operation successful"
-		if m.lockScreen != nil {
-			return m, tea.Sequence(
-				func() tea.Msg {
-					return core.ProgressUpdateMsg{Percent: 1.0, LogLine: finalMsg}
-				},
-				tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
-					return HideLockScreenMsg{}
-				}),
-				// After hiding the lock screen, get the fresh spellbook content
-				m.getSpellbookContentCmd,
-			)
-		}
-		m.StatusBar.StopSpinner()
-		m.StatusBar.Content = "Updated runes list"
-		m.StatusBar.Level = statusbar.LevelSuccess
 		utils.ResetListFilterState(&m.runesList)
-		return m, clearStatusCmd()
+
+
+		// The lock screen is still active. Update it to show the final success
+		// message, and then schedule it to close after a short delay.
+		// This is the command that will finally unlock the UI.
+		return m, tea.Sequence(
+			func() tea.Msg {
+				return core.ProgressUpdateMsg{Percent: 1.0, LogLine: "Rune operation successful"}
+			},
+			tea.Tick(1*time.Second, func(t time.Time) tea.Msg {
+				return HideLockScreenMsg{}
+			}),
+		)
 	case noChangesMsg:
 		m.state = showingRunes
 		m.keys = viewingRunesKeys()
