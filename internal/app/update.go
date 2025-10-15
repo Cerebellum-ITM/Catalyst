@@ -78,6 +78,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Only return early if the message was NOT a completion signal.
 		// Completion signals need to fall through to the main state logic.
 		switch msg.(type) {
+		case gotSpellbookMsg, errMsg, tea.WindowSizeMsg:
 		// Fall through
 		default:
 			return m, tea.Batch(cmds...)
