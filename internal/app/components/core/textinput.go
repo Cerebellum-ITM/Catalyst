@@ -20,6 +20,7 @@ type CustomTextInput struct {
 func NewTextInput(Name string, theme styles.Theme) CustomTextInput {
 	ti := textinput.New()
 	ti.Placeholder = "Enter text..."
+	ti.ShowSuggestions = true
 	ti.SetStyles(theme.AppStyles().Textinput)
 	return CustomTextInput{
 		Name:  Name,

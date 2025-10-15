@@ -357,6 +357,13 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					m.keys.RemoveCommand.SetEnabled(false)
 					m.StatusBar.Content = "Creating a new Rune"
 
+					// Prepare loeg suggestions
+					loegSuggestions := make([]string, 0, len(m.spellbook.Loegs))
+					for k := range m.spellbook.Loegs {
+						loegSuggestions = append(loegSuggestions, fmt.Sprintf("{{.%s}}", k))
+					}
+					sort.Strings(loegSuggestions)
+
 					// Clear inputs for new rune entry
 					m.inputs = make([]core.CustomTextInput, 3) // name, desc, one command
 					var t core.CustomTextInput
@@ -373,6 +380,7 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 						case 2:
 							t.Name = "Cmd 1"
 							t.Model.Placeholder = "docker compose up -d"
+							t.Model.SetSuggestions(loegSuggestions)
 						}
 						m.inputs[i] = t
 					}
@@ -517,6 +525,13 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				}
 				selectedRune := selectedRuneItem.Rune
 
+				// Prepare loeg suggestions
+				loegSuggestions := make([]string, 0, len(m.spellbook.Loegs))
+				for k := range m.spellbook.Loegs {
+					loegSuggestions = append(loegSuggestions, fmt.Sprintf("{{.%s}}", k))
+				}
+				sort.Strings(loegSuggestions)
+
 				m.inputs = make([]core.CustomTextInput, 2+len(selectedRune.Commands))
 
 				var t core.CustomTextInput
@@ -539,6 +554,7 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					t = core.NewTextInput(textinputCmdName, *m.Theme)
 					t.Model.Placeholder = "Command"
 					t.Model.SetValue(cmd)
+					t.Model.SetSuggestions(loegSuggestions)
 					m.inputs[2+i] = t
 				}
 				return m, textinput.Blink
