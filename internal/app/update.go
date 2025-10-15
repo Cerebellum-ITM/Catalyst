@@ -78,8 +78,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Only return early if the message was NOT a completion signal.
 		// Completion signals need to fall through to the main state logic.
 		switch msg.(type) {
-
-			// Fall through
+		// Fall through
 		default:
 			return m, tea.Batch(cmds...)
 		}
@@ -447,20 +446,34 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case key.Matches(msg, m.keys.Enter):
-			selectedItem, ok := m.runesList.SelectedItem().(core.RuneItem)
-			if !ok {
-				return m, nil
-			}
 			m.previousState = showingRunes
 			m.state = executingRune
 			m.keys = executingRuneKeys()
-			m.StatusBar.Content = "Executing rune..."
-			m.executingRuneName = selectedItem.Rune.Name // Store the name
-			// Initialize the logs view here, *before* executing the command
-			m.logsView = core.NewLogsView(m.width/3, m.availableHeight, m.Theme)
-			m.focusedElement = logsViewportElement // Set initial focus
-			m.recalculateSizes()
-			return m, tea.Batch(m.StatusBar.StartSpinner(), m.executeSpecificRuneCmd(selectedItem.Rune))
+			m.executingViewport.SetContent("")
+			m.output = ""
+
+			if len(m.executionQueue) > 0 {
+				m.StatusBar.Content = "Executing rune queue..."
+				m.executionQueueIndex = 0
+				m.logsView = core.NewLogsView(m.width/3, m.availableHeight, m.Theme)
+				m.focusedElement = logsViewportElement // Set initial focus
+				m.recalculateSizes()
+				return m, tea.Batch(m.StatusBar.StartSpinner(), m.executeQueuedRuneCmd())
+			} else {
+
+				selectedItem, ok := m.runesList.SelectedItem().(core.RuneItem)
+				if !ok {
+					return m, nil
+				}
+
+				m.StatusBar.Content = "Executing rune..."
+				m.executingRuneName = selectedItem.Rune.Name // Store the name
+				// Initialize the logs view here, *before* executing the command
+				m.logsView = core.NewLogsView(m.width/3, m.availableHeight, m.Theme)
+				m.focusedElement = logsViewportElement // Set initial focus
+				m.recalculateSizes()
+				return m, tea.Batch(m.StatusBar.StartSpinner(), m.executeSpecificRuneCmd(selectedItem.Rune))
+			}
 
 		case key.Matches(msg, m.keys.Delete):
 			if len(m.spellbook.Runes) > 0 {
@@ -521,7 +534,47 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				return m, textinput.Blink
 			}
 
-			// ... other key matches like delete, edit ...
+		case key.Matches(msg, m.keys.QueueRune):
+			selectedItem, ok := m.runesList.SelectedItem().(core.RuneItem)
+			if !ok {
+				return m, nil
+			}
+			selectedRune := selectedItem.Rune
+
+			// Check if the rune is already in the queue
+			foundIndex := -1
+			for i, r := range m.executionQueue {
+				if r.Name == selectedRune.Name {
+					foundIndex = i
+					break
+				}
+			}
+
+			if foundIndex != -1 {
+				// Remove from the queue
+				m.executionQueue = append(m.executionQueue[:foundIndex], m.executionQueue[foundIndex+1:]...)
+			} else {
+				// Add to the queue
+				m.executionQueue = append(m.executionQueue, selectedRune)
+			}
+
+			// Update QueuePosition for all items
+			queueMap := make(map[string]int)
+			for i, r := range m.executionQueue {
+				queueMap[r.Name] = i + 1
+			}
+
+			listItems := m.runesList.Items()
+			for i, item := range listItems {
+				runeItem := item.(core.RuneItem)
+				if pos, ok := queueMap[runeItem.Rune.Name]; ok {
+					runeItem.QueuePosition = pos
+				} else {
+					runeItem.QueuePosition = 0
+				}
+				listItems[i] = runeItem
+			}
+			return m, m.runesList.SetItems(listItems)
 		}
 
 	case confirmedDeleteRuneMsg:
@@ -623,6 +676,8 @@ func updateExecutingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				m.state = showingHistory
 				m.keys = viewingHistoryKeys()
 				m.StatusBar.Content = "Viewing History"
+				m.output = ""
+				m.executingViewport.SetContent("")
 				return m, m.getHistoryCmd
 			}
 			m.state = showingRunes
@@ -652,19 +707,45 @@ func updateExecutingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	case types.RuneCommandFinished:
 		m.currentCancelFunc = nil // Command is done.
 		if msg.Err != nil {
-			m.logsView.AddLog(log.ErrorLevel, "Command failed", "error", msg.Err)
+			m.logsView.AddLog(log.ErrorLevel, "Command failed, stopping execution", "error", msg.Err)
+			if len(m.executionQueue) > 0 {
+				m.logsView.AddLog(log.ErrorLevel, "Execution queue stopped due to error")
+				m.executionQueue = nil
+				m.executionQueueIndex = 0
+			}
+			m.StatusBar.StopSpinner()
+			m.StatusBar.Content = "Execution failed!"
+			m.StatusBar.Level = statusbar.LevelError
+			return m, clearStatusCmd()
 		}
 
 		m.currentCommandIndex++
 		if m.currentCommandIndex < len(m.commandsToExecute) {
 			return m, func() tea.Msg { return runNextCommandMsg{} }
-		} else {
+		}
+
+		m.logsView.AddLog(log.DebugLevel, "Rune finished", "rune", m.executingRuneName)
+		if len(m.executionQueue) > 0 {
+			m.executionQueueIndex++
+			if m.executionQueueIndex < len(m.executionQueue) {
+				m.logsView.AddSeparator()
+				m.executingViewport.SetContent("")
+				m.output = m.output + "\n\n"
+				return m, m.executeQueuedRuneCmd()
+			}
+			m.executionQueue = nil
+			m.executionQueueIndex = 0
 			m.StatusBar.StopSpinner()
-			m.StatusBar.Content = "Execution finished"
+			m.StatusBar.Content = "Execution queue finished"
 			m.StatusBar.Level = statusbar.LevelSuccess
-			m.logsView.AddLog(log.DebugLevel, "Execution finished", "rune", m.executingRuneName)
+			m.logsView.AddLog(log.DebugLevel, "All runes in queue executed successfully")
 			return m, clearStatusCmd()
 		}
+
+		m.StatusBar.StopSpinner()
+		m.StatusBar.Content = "Execution finished"
+		m.StatusBar.Level = statusbar.LevelSuccess
+		return m, clearStatusCmd()
 	}
 
 	var cmd tea.Cmd
@@ -1009,6 +1090,26 @@ func updateShowingLoegs(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// executeQueuedRuneCmd prepares and executes the current rune in the queue.
+func (m *Model) executeQueuedRuneCmd() tea.Cmd {
+	if m.executionQueueIndex < len(m.executionQueue) {
+		runeToExecute := m.executionQueue[m.executionQueueIndex]
+		if m.logsView != nil {
+			m.logsView.AddLog(
+				log.InfoLevel,
+				"--- PREPARING NEXT RUNE ---",
+				"index",
+				m.executionQueueIndex,
+				"rune",
+				runeToExecute.Name,
+			)
+		}
+		m.executingRuneName = runeToExecute.Name
+		return m.executeSpecificRuneCmd(runeToExecute)
+	}
+	return nil
+}
+
 // updateCreatingLoeg handles the form for creating a new loeg.
 func updateCreatingLoeg(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -1164,4 +1265,3 @@ func updateShowingHistory(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
-

@@ -24,6 +24,7 @@ type KeyMap struct {
 	Delete        key.Binding
 	New           key.Binding
 	ClearFilter   key.Binding
+	QueueRune     key.Binding
 	NextField     key.Binding
 	AddCommand    key.Binding
 	RemoveCommand key.Binding
@@ -68,6 +69,7 @@ func viewingRunesKeys() KeyMap {
 		Enter:       key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "run")),
 		Edit:        key.NewBinding(key.WithKeys("ctrl+e"), key.WithHelp("ctrl+e", "edit")),
 		Delete:      key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "delete")),
+		QueueRune:   key.NewBinding(key.WithKeys("ctrl+q"), key.WithHelp("ctrl+q", "queue rune")),
 		SwitchFocus: key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "Toggle focus")),
 		Esc:         key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
 		GlobalQuit:  key.NewBinding(key.WithKeys("ctrl+x"), key.WithHelp("ctrl+x", "quit")),
@@ -210,6 +212,9 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 	}
 	if k.SwitchFocus.Enabled() {
 		b = append(b, k.SwitchFocus)
+	}
+	if k.QueueRune.Enabled() {
+		b = append(b, k.QueueRune)
 	}
 	if k.New.Enabled() {
 		b = append(b, k.New)

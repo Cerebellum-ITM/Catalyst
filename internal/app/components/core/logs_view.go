@@ -111,3 +111,12 @@ func (m *LogsViewModel) AddLog(level log.Level, msg string, keyvals ...any) {
 	m.viewport.SetContent(m.logOutput.String())
 	m.viewport.GotoBottom()
 }
+
+func (m *LogsViewModel) AddSeparator() {
+	separator := lipgloss.NewStyle().
+		Foreground(m.theme.FgSubtle).
+		Render("---")
+	m.logOutput.WriteString(separator + "\n")
+	m.viewport.SetContent(m.logOutput.String())
+	m.viewport.GotoBottom()
+}

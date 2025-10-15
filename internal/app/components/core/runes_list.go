@@ -23,18 +23,29 @@ func (d RunesListDelegate) Render(w io.Writer, m list.Model, index int, listItem
 	if !ok {
 		return
 	}
+
+	var queue string
+	if item.QueuePosition > 0 {
+		queue = fmt.Sprintf("[%d]", item.QueuePosition)
+	} else {
+		queue = ""
+	}
+
 	if index == m.Index() {
 		cursor := baseStyle.Foreground(theme.Accent).Render("❯")
 		renderedTitle := baseStyle.Foreground(theme.Primary).Render(item.Title())
-		fmt.Fprintf(w, "%s %s", cursor, renderedTitle)
+		rendererQueue := baseStyle.Foreground(theme.Secondary).Render(queue)
+		fmt.Fprintf(w, "%s %s %s", cursor, renderedTitle, rendererQueue)
 	} else {
 		renderedTitle := baseStyle.Foreground(d.Theme.Blur).Render(item.Title())
-		fmt.Fprintf(w, "  %s", renderedTitle)
+		rendererQueue := baseStyle.Foreground(theme.Secondary).Render(queue)
+		fmt.Fprintf(w, "  %s %s", renderedTitle, rendererQueue)
 	}
 }
 
 type RuneItem struct {
 	types.Rune
+	QueuePosition int
 }
 
 func (i RuneItem) Title() string       { return i.Rune.Name }

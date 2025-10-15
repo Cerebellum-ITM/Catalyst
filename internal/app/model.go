@@ -55,23 +55,22 @@ const (
 
 // Define messages for async operations.
 type (
-	gotSpellbookMsg struct{ spellbook Spellbook }
-	runeCreatedMsg  struct{}
+	gotSpellbookMsg   struct{ spellbook Spellbook }
+	runeCreatedMsg    struct{}
 	runNextCommandMsg struct{}
-	gotLoegsMsg     struct{ loegs map[string]string }
-	loegSetMsg      struct{}
-	loegRemovedMsg  struct{}
-	runeUpdatedMsg  struct{}
-	runeDeletedMsg  struct{}
-	gotHistoryMsg   struct{ history []db.HistoryEntry }
-	noChangesMsg    struct{} // Message to indicate no changes were made
-	clearStatusMsg struct{}
-	ClosePopupMsg  core.ClosePopupMsg
+	gotLoegsMsg       struct{ loegs map[string]string }
+	loegSetMsg        struct{}
+	loegRemovedMsg    struct{}
+	runeUpdatedMsg    struct{}
+	runeDeletedMsg    struct{}
+	gotHistoryMsg     struct{ history []db.HistoryEntry }
+	noChangesMsg      struct{} // Message to indicate no changes were made
+	clearStatusMsg    struct{}
+	ClosePopupMsg     core.ClosePopupMsg
 
 	confirmedDeleteRuneMsg struct{}
 	errMsg                 struct{ err error }
 )
-
 
 type HideLockScreenMsg struct{}
 
@@ -90,39 +89,39 @@ func noDelayClearStatusCmd() tea.Cmd {
 
 // Model is the main application model.
 type Model struct {
-	availableHeight   int
-	keys              KeyMap
-	help              help.Model
-	sshClient         *ssh.Client
-	localRunner       *local.Runner
-	db                *db.Database
-	state             state
-	previousState     state
-	focusedElement    focusableElement
-	pwd               string // Current working directory (spellbook path)
-	menuItems         list.Model
-	runesList         list.Model
-	cursor            int
-	spellbook         *Spellbook // Our in-memory cache
-	viewportSpellBook viewport.Model
-	formViewport      viewport.Model
-	executingViewport viewport.Model
-	loegKeys          []string               // For ordered display and selection
-	history           []db.HistoryEntry      // For the history view
-	inputs            []core.CustomTextInput // For the "Create Rune" form
-	focusIndex        int
-	output                  string // To store output from executed runes
-	err                     error
-	lockScreen              *core.LockScreenModel
-	logsView                *core.LogsViewModel
-	lockScreenJustCreated   bool
-	popup                   *core.PopupModel
-	width                   int
-	height                  int
-	StatusBar               statusbar.StatusBar
-	Theme                   *styles.Theme
-	Version                 string
-	SpellbookString         string
+	availableHeight       int
+	keys                  KeyMap
+	help                  help.Model
+	sshClient             *ssh.Client
+	localRunner           *local.Runner
+	db                    *db.Database
+	state                 state
+	previousState         state
+	focusedElement        focusableElement
+	pwd                   string // Current working directory (spellbook path)
+	menuItems             list.Model
+	runesList             list.Model
+	cursor                int
+	spellbook             *Spellbook // Our in-memory cache
+	viewportSpellBook     viewport.Model
+	formViewport          viewport.Model
+	executingViewport     viewport.Model
+	loegKeys              []string               // For ordered display and selection
+	history               []db.HistoryEntry      // For the history view
+	inputs                []core.CustomTextInput // For the "Create Rune" form
+	focusIndex            int
+	output                string // To store output from executed runes
+	err                   error
+	lockScreen            *core.LockScreenModel
+	logsView              *core.LogsViewModel
+	lockScreenJustCreated bool
+	popup                 *core.PopupModel
+	width                 int
+	height                int
+	StatusBar             statusbar.StatusBar
+	Theme                 *styles.Theme
+	Version               string
+	SpellbookString       string
 
 	// For sequential command execution
 	commandsToExecute   []string
@@ -130,6 +129,8 @@ type Model struct {
 	currentCancelFunc   context.CancelFunc
 	executingRuneName   string
 	msgChan             chan tea.Msg
+	executionQueue      []types.Rune
+	executionQueueIndex int
 }
 
 // NewModel creates a new application model.
@@ -321,15 +322,6 @@ func (m *Model) createRuneCmd() tea.Msg {
 	)()
 }
 
-// executeRuneCmd runs the commands for a selected rune from the main list.
-func (m *Model) executeRuneCmd() tea.Msg {
-	selectedItem, ok := m.runesList.SelectedItem().(core.RuneItem)
-	if !ok {
-		return errMsg{fmt.Errorf("invalid rune selection")}
-	}
-	return m.executeSpecificRuneCmd(selectedItem.Rune)()
-}
-
 // executeSpecificRuneCmd sets up the model for sequential command execution.
 func (m *Model) executeSpecificRuneCmd(r types.Rune) tea.Cmd {
 	return func() tea.Msg {
@@ -338,12 +330,9 @@ func (m *Model) executeSpecificRuneCmd(r types.Rune) tea.Cmd {
 		}
 		m.commandsToExecute = r.Commands
 		m.currentCommandIndex = 0
-		m.output = "" // Clear previous output
-		m.executingViewport.SetContent("") // Clear previous output
 		return runNextCommandMsg{}
 	}
 }
-
 
 // executeNextCommandCmd starts a command and returns a command that listens for its output.
 func (m *Model) executeNextCommandCmd() tea.Cmd {
@@ -379,8 +368,6 @@ func waitForOutput(ch <-chan tea.Msg) tea.Cmd {
 		return msg
 	}
 }
-
-
 
 // getHistoryCmd retrieves the execution history from the database.
 func (m *Model) getHistoryCmd() tea.Msg {
@@ -520,4 +507,3 @@ func (m Model) Init() tea.Cmd {
 		m.StatusBar.Spinner.Tick, // Start the spinner
 	)
 }
-
