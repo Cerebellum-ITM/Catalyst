@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"catalyst/internal/types"
@@ -459,9 +460,18 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				m.logsView = core.NewLogsView(m.width/3, m.availableHeight, m.Theme)
 				m.focusedElement = logsViewportElement // Set initial focus
 				m.recalculateSizes()
+
+				// Save the entire queue to history
+				var runeIDs []string
+				for _, r := range m.executionQueue {
+					runeIDs = append(runeIDs, r.Name)
+				}
+				if err := m.db.AddHistoryEntry(runeIDs, m.spellbook.Name); err != nil {
+					return m, func() tea.Msg { return errMsg{err} }
+				}
+
 				return m, tea.Batch(m.StatusBar.StartSpinner(), m.executeQueuedRuneCmd())
 			} else {
-
 				selectedItem, ok := m.runesList.SelectedItem().(core.RuneItem)
 				if !ok {
 					return m, nil
@@ -469,11 +479,10 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 
 				m.StatusBar.Content = "Executing rune..."
 				m.executingRuneName = selectedItem.Rune.Name // Store the name
-				// Initialize the logs view here, *before* executing the command
 				m.logsView = core.NewLogsView(m.width/3, m.availableHeight, m.Theme)
 				m.focusedElement = logsViewportElement // Set initial focus
 				m.recalculateSizes()
-				return m, tea.Batch(m.StatusBar.StartSpinner(), m.executeSpecificRuneCmd(selectedItem.Rune))
+				return m, tea.Batch(m.StatusBar.StartSpinner(), m.executeSpecificRuneCmd(selectedItem.Rune, true))
 			}
 
 		case key.Matches(msg, m.keys.Delete):
@@ -1106,7 +1115,7 @@ func (m *Model) executeQueuedRuneCmd() tea.Cmd {
 			)
 		}
 		m.executingRuneName = runeToExecute.Name
-		return m.executeSpecificRuneCmd(runeToExecute)
+		return m.executeSpecificRuneCmd(runeToExecute, false)
 	}
 	return nil
 }
@@ -1225,30 +1234,57 @@ func updateShowingHistory(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Enter):
 			if m.cursor >= 0 && m.cursor < len(m.history) {
 				selectedEntry := m.history[m.cursor]
-				var selectedRune *types.Rune
-				for i := range m.spellbook.Runes {
-					if m.spellbook.Runes[i].Name == selectedEntry.RuneID {
-						selectedRune = &m.spellbook.Runes[i]
-						break
+				runeIDs := strings.Split(selectedEntry.RuneID, ",")
+
+				// Find all runes from the spellbook
+				var runesToExecute []types.Rune
+				for _, runeID := range runeIDs {
+					found := false
+					for _, r := range m.spellbook.Runes {
+						if r.Name == runeID {
+							runesToExecute = append(runesToExecute, r)
+							found = true
+							break
+						}
+					}
+					if !found {
+						m.StatusBar.Content = fmt.Sprintf("Rune '%s' from history not found", runeID)
+						m.StatusBar.Level = statusbar.LevelWarning
+						return m, clearStatusCmd()
 					}
 				}
 
-				if selectedRune != nil {
+				if len(runesToExecute) > 0 {
 					m.previousState = showingHistory
 					m.state = executingRune
 					m.keys = executingRuneKeys()
-					m.StatusBar.Content = "Executing rune from history..."
-					m.StatusBar.Level = statusbar.LevelInfo
-					m.executingRuneName = selectedRune.Name // Store the name
-					// Initialize the logs view here as well
+					m.executingViewport.SetContent("")
+					m.output = ""
 					m.logsView = core.NewLogsView(m.width/3, m.availableHeight, m.Theme)
-					m.focusedElement = logsViewportElement // Set initial focus
-					return m, tea.Batch(m.StatusBar.StartSpinner(), m.executeSpecificRuneCmd(*selectedRune))
+					m.focusedElement = logsViewportElement
+					m.recalculateSizes()
+
+					if len(runesToExecute) > 1 {
+						// It's a queue
+						m.StatusBar.Content = "Executing rune queue from history..."
+						m.executionQueue = runesToExecute
+						m.executionQueueIndex = 0
+						var runeIDs []string
+						for _, r := range m.executionQueue {
+							runeIDs = append(runeIDs, r.Name)
+						}
+						if err := m.db.AddHistoryEntry(runeIDs, m.spellbook.Name); err != nil {
+							return m, func() tea.Msg { return errMsg{err} }
+						}
+
+						return m, tea.Batch(m.StatusBar.StartSpinner(), m.executeQueuedRuneCmd())
+					} else {
+						// It's a single rune
+						m.StatusBar.Content = "Executing rune from history..."
+						m.executingRuneName = runesToExecute[0].Name
+						return m, tea.Batch(m.StatusBar.StartSpinner(), m.executeSpecificRuneCmd(runesToExecute[0], true))
+					}
 				}
-				// Optional: Handle case where rune is not found anymore
-				m.StatusBar.Content = "Rune from history not found in current spellbook"
-				m.StatusBar.Level = statusbar.LevelWarning
-				return m, clearStatusCmd()
 			}
 		}
 	case gotHistoryMsg:

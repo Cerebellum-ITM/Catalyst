@@ -323,10 +323,12 @@ func (m *Model) createRuneCmd() tea.Msg {
 }
 
 // executeSpecificRuneCmd sets up the model for sequential command execution.
-func (m *Model) executeSpecificRuneCmd(r types.Rune) tea.Cmd {
+func (m *Model) executeSpecificRuneCmd(r types.Rune, saveHistory bool) tea.Cmd {
 	return func() tea.Msg {
-		if err := m.db.AddHistoryEntry(r.Name, m.spellbook.Name); err != nil {
-			return errMsg{err}
+		if saveHistory {
+			if err := m.db.AddHistoryEntry([]string{r.Name}, m.spellbook.Name); err != nil {
+				return errMsg{err}
+			}
 		}
 		m.commandsToExecute = r.Commands
 		m.currentCommandIndex = 0

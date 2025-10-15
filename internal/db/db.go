@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -57,9 +58,10 @@ func InitDB() (*Database, error) {
 }
 
 // AddHistoryEntry inserts a new record into the history table.
-func (db *Database) AddHistoryEntry(runeID, spellbookID string) error {
+func (db *Database) AddHistoryEntry(runeIDs []string, spellbookID string) error {
+	runeIDStr := strings.Join(runeIDs, ",")
 	query := `INSERT INTO history (rune_id, spellbook_id, executed_at) VALUES (?, ?, ?)`
-	_, err := db.Exec(query, runeID, spellbookID, time.Now())
+	_, err := db.Exec(query, runeIDStr, spellbookID, time.Now())
 	if err != nil {
 		return fmt.Errorf("failed to insert history entry: %w", err)
 	}
