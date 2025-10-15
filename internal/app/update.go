@@ -357,12 +357,13 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					m.keys.RemoveCommand.SetEnabled(false)
 					m.StatusBar.Content = "Creating a new Rune"
 
-					// Prepare loeg suggestions
-					loegSuggestions := make([]string, 0, len(m.spellbook.Loegs))
+					// Prepare combined suggestions
+					allSuggestions := make([]string, len(m.systemCommands))
+					copy(allSuggestions, m.systemCommands)
 					for k := range m.spellbook.Loegs {
-						loegSuggestions = append(loegSuggestions, fmt.Sprintf("{{.%s}}", k))
+						allSuggestions = append(allSuggestions, fmt.Sprintf("{{.%s}}", k))
 					}
-					sort.Strings(loegSuggestions)
+					sort.Strings(allSuggestions)
 
 					// Clear inputs for new rune entry
 					m.inputs = make([]core.CustomTextInput, 3) // name, desc, one command
@@ -380,7 +381,7 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 						case 2:
 							t.Name = "Cmd 1"
 							t.Model.Placeholder = "docker compose up -d"
-							t.Model.SetSuggestions(loegSuggestions)
+							t.Model.SetSuggestions(allSuggestions)
 						}
 						m.inputs[i] = t
 					}
@@ -525,12 +526,13 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				}
 				selectedRune := selectedRuneItem.Rune
 
-				// Prepare loeg suggestions
-				loegSuggestions := make([]string, 0, len(m.spellbook.Loegs))
+				// Prepare combined suggestions
+				allSuggestions := make([]string, len(m.systemCommands))
+				copy(allSuggestions, m.systemCommands)
 				for k := range m.spellbook.Loegs {
-					loegSuggestions = append(loegSuggestions, fmt.Sprintf("{{.%s}}", k))
+					allSuggestions = append(allSuggestions, fmt.Sprintf("{{.%s}}", k))
 				}
-				sort.Strings(loegSuggestions)
+				sort.Strings(allSuggestions)
 
 				m.inputs = make([]core.CustomTextInput, 2+len(selectedRune.Commands))
 
@@ -554,7 +556,7 @@ func updateShowingRunes(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					t = core.NewTextInput(textinputCmdName, *m.Theme)
 					t.Model.Placeholder = "Command"
 					t.Model.SetValue(cmd)
-					t.Model.SetSuggestions(loegSuggestions)
+					t.Model.SetSuggestions(allSuggestions)
 					m.inputs[2+i] = t
 				}
 				return m, textinput.Blink

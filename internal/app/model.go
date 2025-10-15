@@ -23,6 +23,8 @@ import (
 	"github.com/charmbracelet/bubbles/v2/viewport"
 	tea "github.com/charmbracelet/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss/v2"
+	"path/filepath"
+	"sort"
 )
 
 // Define application states.
@@ -131,6 +133,7 @@ type Model struct {
 	msgChan             chan tea.Msg
 	executionQueue      []types.Rune
 	executionQueueIndex int
+	systemCommands      []string
 }
 
 // NewModel creates a new application model.
@@ -169,13 +172,13 @@ func NewModel(cfg *config.Config, db *db.Database, version string) Model {
 		viewportSpellBook: viewport.New(),
 		formViewport:      viewport.New(),
 		executingViewport: viewport.New(),
+		systemCommands:    loadSystemCommands(),
 	}
 
 	// Initialize text inputs for the create rune form
 	var t core.CustomTextInput
 	for i := range m.inputs {
 		t = core.NewTextInput("", *theme)
-
 		switch i {
 		case 0:
 			t.Name = "Rune Name"
@@ -192,6 +195,38 @@ func NewModel(cfg *config.Config, db *db.Database, version string) Model {
 	}
 
 	return m
+}
+
+// loadSystemCommands scans the PATH environment variable to find all available
+// executable commands.
+func loadSystemCommands() []string {
+	commands := make(map[string]struct{})
+	pathEnv := os.Getenv("PATH")
+	paths := filepath.SplitList(pathEnv)
+
+	for _, path := range paths {
+		files, err := os.ReadDir(path)
+		if err != nil {
+			continue
+		}
+		for _, file := range files {
+			// A simple check for executability for Unix-like systems is to check
+			// if the file is a regular file and not a directory.
+			// A more robust check would inspect file permissions, but this is a
+			// good starting point.
+			if !file.IsDir() {
+				commands[file.Name()] = struct{}{}
+			}
+		}
+	}
+
+	// Convert map keys to a slice
+	commandList := make([]string, 0, len(commands))
+	for cmd := range commands {
+		commandList = append(commandList, cmd)
+	}
+	sort.Strings(commandList)
+	return commandList
 }
 
 type recalcOptions struct {
