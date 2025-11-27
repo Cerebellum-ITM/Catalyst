@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"strings"
 
+	"catalyst/internal/app/components/core"
 	"catalyst/internal/ascii"
 	"catalyst/internal/types"
 	"catalyst/internal/utils"
@@ -574,7 +575,13 @@ func (m *Model) View() string {
 	canvas := lipgloss.NewCanvas(mainLayer)
 
 	if m.popup != nil {
-		popupView := m.popup.View()
+		var popupView string
+		switch popupModel := m.popup.(type) {
+		case *core.PopupModel:
+			popupView = popupModel.View()
+		case *core.PopupSuggestionsFinder:
+			popupView = popupModel.View()
+		}
 		popupWidth := lipgloss.Width(popupView)
 		popupHeight := lipgloss.Height(popupView)
 		startX := (m.width - popupWidth) / 2

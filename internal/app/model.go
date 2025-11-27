@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -23,8 +25,6 @@ import (
 	"github.com/charmbracelet/bubbles/v2/viewport"
 	tea "github.com/charmbracelet/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss/v2"
-	"path/filepath"
-	"sort"
 )
 
 // Define application states.
@@ -57,18 +57,23 @@ const (
 
 // Define messages for async operations.
 type (
-	gotSpellbookMsg   struct{ spellbook Spellbook }
-	runeCreatedMsg    struct{}
-	runNextCommandMsg struct{}
-	gotLoegsMsg       struct{ loegs map[string]string }
-	loegSetMsg        struct{}
-	loegRemovedMsg    struct{}
-	runeUpdatedMsg    struct{}
-	runeDeletedMsg    struct{}
-	gotHistoryMsg     struct{ history []db.HistoryEntry }
-	noChangesMsg      struct{} // Message to indicate no changes were made
-	clearStatusMsg    struct{}
-	ClosePopupMsg     core.ClosePopupMsg
+	gotSpellbookMsg               struct{ spellbook Spellbook }
+	runeCreatedMsg                struct{}
+	runNextCommandMsg             struct{}
+	gotLoegsMsg                   struct{ loegs map[string]string }
+	loegSetMsg                    struct{}
+	loegRemovedMsg                struct{}
+	runeUpdatedMsg                struct{}
+	runeDeletedMsg                struct{}
+	gotHistoryMsg                 struct{ history []db.HistoryEntry }
+	noChangesMsg                  struct{} // Message to indicate no changes were made
+	clearStatusMsg                struct{}
+	ClosePopupMsg                 core.ClosePopupMsg
+	OpenSuggestionsFinderPopupMsg struct{}
+	PasteSuggestionInTextInput    struct {
+		SuggestionStr string
+		CursorPosition int
+	}
 
 	confirmedDeleteRuneMsg struct{}
 	errMsg                 struct{ err error }
@@ -117,7 +122,7 @@ type Model struct {
 	lockScreen            *core.LockScreenModel
 	logsView              *core.LogsViewModel
 	lockScreenJustCreated bool
-	popup                 *core.PopupModel
+	popup                 tea.Model
 	width                 int
 	height                int
 	StatusBar             statusbar.StatusBar
@@ -134,6 +139,7 @@ type Model struct {
 	executionQueue      []types.Rune
 	executionQueueIndex int
 	systemCommands      []string
+	Suggestions         []string
 }
 
 // NewModel creates a new application model.
@@ -173,6 +179,7 @@ func NewModel(cfg *config.Config, db *db.Database, version string) Model {
 		formViewport:      viewport.New(),
 		executingViewport: viewport.New(),
 		systemCommands:    loadSystemCommands(),
+		Suggestions:       nil,
 	}
 
 	// Initialize text inputs for the create rune form

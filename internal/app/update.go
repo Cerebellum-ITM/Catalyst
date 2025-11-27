@@ -39,16 +39,22 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case HideLockScreenMsg:
 		m.lockScreen = nil
 		return m, m.getSpellbookContentCmd // This is the new centralized refresh point
+	case core.CloseSuggestionsFinderPopupMsg:
+		m.popup = nil
+		return m, func() tea.Msg {
+			return PasteSuggestionInTextInput{SuggestionStr: msg.SuggestionStr, CursorPosition: msg.CursorPosition}
+		}
 	}
 
 	// If a popup is active, it captures all input and blocks other components.
 	if m.popup != nil {
-		var popupModel tea.Model
-		popupModel, cmd = m.popup.Update(msg)
-		if newPopupModel, ok := popupModel.(*core.PopupModel); ok {
-			m.popup = newPopupModel
-		} else {
-			m.popup = nil // Should not happen, but good to be safe.
+		switch m.popup.(type) {
+		case *core.PopupModel:
+			m.popup, cmd = m.popup.Update(msg)
+		case *core.PopupSuggestionsFinder:
+			m.popup, cmd = m.popup.Update(msg)
+		default:
+			m.popup = nil
 		}
 		cmds = append(cmds, cmd)
 		return m, tea.Batch(cmds...)
@@ -229,6 +235,13 @@ func updateInitial(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		m.StatusBar.StopSpinner()
 		m.focusedElement = listElement
 		utils.ResetListFilterState(&m.menuItems)
+		allSuggestions := make([]string, len(m.systemCommands))
+		copy(allSuggestions, m.systemCommands)
+		for k := range m.spellbook.Loegs {
+			allSuggestions = append(allSuggestions, fmt.Sprintf("{{.%s}}", k))
+		}
+		sort.Strings(allSuggestions)
+		m.Suggestions = allSuggestions
 		return m, continueToReadyCmd()
 	case errMsg:
 		finalMsg := "An error occurred"
@@ -357,14 +370,6 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 					m.keys.RemoveCommand.SetEnabled(false)
 					m.StatusBar.Content = "Creating a new Rune"
 
-					// Prepare combined suggestions
-					allSuggestions := make([]string, len(m.systemCommands))
-					copy(allSuggestions, m.systemCommands)
-					for k := range m.spellbook.Loegs {
-						allSuggestions = append(allSuggestions, fmt.Sprintf("{{.%s}}", k))
-					}
-					sort.Strings(allSuggestions)
-
 					// Clear inputs for new rune entry
 					m.inputs = make([]core.CustomTextInput, 3) // name, desc, one command
 					var t core.CustomTextInput
@@ -381,7 +386,6 @@ func updateReady(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 						case 2:
 							t.Name = "Cmd 1"
 							t.Model.Placeholder = "docker compose up -d"
-							t.Model.SetSuggestions(allSuggestions)
 						}
 						m.inputs[i] = t
 					}
@@ -853,6 +857,22 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				return HideLockScreenMsg{}
 			}),
 		)
+	case OpenSuggestionsFinderPopupMsg:
+		NewPopup := core.NewPopupSuggestionsFinder("Command/Loegs search", *m.Theme, m.width, m.height, m.inputs[m.focusIndex].Position())
+		NewPopup.Model.SetSuggestions(m.Suggestions)
+		m.popup = NewPopup
+		return m, textinput.Blink
+
+	case PasteSuggestionInTextInput:
+		currentTextInput := m.inputs[m.focusIndex].Value()
+		m.inputs[m.focusIndex].SetCursor(msg.CursorPosition)
+		m.inputs[m.focusIndex].Focus()
+		m.inputs[m.focusIndex].SetValue(utils.InsertString(currentTextInput, msg.SuggestionStr, msg.CursorPosition))
+		clipboard.Write(clipboard.FmtText, []byte(msg.SuggestionStr))
+		m.StatusBar.Content = "Suggestion copied to clipboard!"
+		m.StatusBar.Level = statusbar.LevelSuccess
+		return m, tea.Batch(textinput.Blink, clearStatusCmd())
+
 	case noChangesMsg:
 		m.state = showingRunes
 		m.keys = viewingRunesKeys()
@@ -881,6 +901,7 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			m.keys.AddCommand.SetEnabled(m.focusIndex >= 2)
 			m.keys.RemoveCommand.SetEnabled(m.focusIndex >= 2)
 			m.keys.MoveCmdUp.SetEnabled(m.focusIndex > 2)
+			m.keys.ShowSuggestionsFinder.SetEnabled(m.focusIndex >= 2)
 			m.keys.MoveCmdDown.SetEnabled(m.focusIndex >= 2 && m.focusIndex < len(m.inputs)-1)
 			navCmds := make([]tea.Cmd, len(m.inputs))
 			for i := range m.inputs {
@@ -891,6 +912,9 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 				}
 			}
 			cmds = append(cmds, tea.Batch(navCmds...))
+
+		case key.Matches(keyMsg, m.keys.ShowSuggestionsFinder):
+			return m, func() tea.Msg { return OpenSuggestionsFinderPopupMsg{} }
 
 		case key.Matches(keyMsg, m.keys.Down):
 			m.focusIndex++
@@ -1070,6 +1094,14 @@ func updateShowingLoegs(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		m.state = showingLoegs
 		m.keys = viewingLoegsKeys()
 		m.cursor = 0
+		allSuggestions := make([]string, len(m.systemCommands))
+		copy(allSuggestions, m.systemCommands)
+		for k := range m.spellbook.Loegs {
+			allSuggestions = append(allSuggestions, fmt.Sprintf("{{.%s}}", k))
+		}
+		sort.Strings(allSuggestions)
+		m.Suggestions = allSuggestions
+
 		finalMsg := "Loegs list updated"
 		if m.lockScreen != nil {
 			return m, tea.Sequence(

@@ -20,19 +20,20 @@ type KeyMap struct {
 	PgDown key.Binding
 
 	// Rune specific
-	Edit          key.Binding
-	Delete        key.Binding
-	New           key.Binding
-	ClearFilter   key.Binding
-	QueueRune     key.Binding
-	NextField     key.Binding
-	AddCommand    key.Binding
-	RemoveCommand key.Binding
-	MoveCmdUp     key.Binding
-	MoveCmdDown   key.Binding
-	submit        key.Binding
-	Cancel        key.Binding
-	Yank          key.Binding
+	Edit                  key.Binding
+	Delete                key.Binding
+	New                   key.Binding
+	ClearFilter           key.Binding
+	QueueRune             key.Binding
+	NextField             key.Binding
+	AddCommand            key.Binding
+	RemoveCommand         key.Binding
+	MoveCmdUp             key.Binding
+	MoveCmdDown           key.Binding
+	submit                key.Binding
+	Cancel                key.Binding
+	Yank                  key.Binding
+	ShowSuggestionsFinder key.Binding
 }
 
 func viewPortKeys() KeyMap {
@@ -99,6 +100,10 @@ func formKeys() KeyMap {
 		submit: key.NewBinding(
 			key.WithKeys("shift+enter"),
 			key.WithHelp("shift+enter", "submit form"),
+		),
+		ShowSuggestionsFinder: key.NewBinding(
+			key.WithKeys("ctrl+s"),
+			key.WithHelp("ctrl+s", "find a command or loeg"),
 		),
 		AddCommand: key.NewBinding(
 			key.WithKeys("ctrl+a"),
