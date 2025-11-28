@@ -16,11 +16,11 @@ import (
 	"catalyst/internal/app/components/statusbar"
 	"catalyst/internal/utils"
 
+	// "github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/v2/key"
 	"github.com/charmbracelet/bubbles/v2/list"
 	"github.com/charmbracelet/bubbles/v2/textinput"
 	tea "github.com/charmbracelet/bubbletea/v2"
-	"golang.design/x/clipboard"
 )
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -689,16 +689,17 @@ func updateExecutingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 			return m, nil
 		case key.Matches(msg, m.keys.Yank):
 			if m.focusedElement == logsViewportElement && m.logsView != nil {
-				clipboard.Write(clipboard.FmtText, []byte(m.logsView.GetContent()))
+				// clipboard.Write(clipboard.FmtText, []byte(m.logsView.GetContent()))
 				m.StatusBar.Content = "Logs copied to clipboard!"
 				m.StatusBar.Level = statusbar.LevelSuccess
-				return m, clearStatusCmd()
+				return m, tea.Sequence(tea.SetClipboard(m.logsView.GetContent()), clearStatusCmd())
 			}
 			if m.focusedElement == outputViewportElement {
-				clipboard.Write(clipboard.FmtText, []byte(m.output))
+				// clipboard.Write(clipboard.FmtText, []byte(m.output))
 				m.StatusBar.Content = "Output copied to clipboard!"
 				m.StatusBar.Level = statusbar.LevelSuccess
-				return m, clearStatusCmd()
+				return m, tea.Sequence(tea.SetClipboard(m.output), clearStatusCmd())
+
 			}
 		case key.Matches(msg, m.keys.Esc), key.Matches(msg, m.keys.Enter):
 			if m.currentCancelFunc != nil {
@@ -868,10 +869,10 @@ func updateEditingRune(msg tea.Msg, m *Model) (tea.Model, tea.Cmd) {
 		m.inputs[m.focusIndex].SetCursor(msg.CursorPosition)
 		m.inputs[m.focusIndex].Focus()
 		m.inputs[m.focusIndex].SetValue(utils.InsertString(currentTextInput, msg.SuggestionStr, msg.CursorPosition))
-		clipboard.Write(clipboard.FmtText, []byte(msg.SuggestionStr))
+		// clipboard.Write(clipboard.FmtText, []byte(msg.SuggestionStr))
 		m.StatusBar.Content = "Suggestion copied to clipboard!"
 		m.StatusBar.Level = statusbar.LevelSuccess
-		return m, tea.Batch(textinput.Blink, clearStatusCmd())
+		return m, tea.Batch(textinput.Blink, tea.SetClipboard(msg.SuggestionStr), clearStatusCmd())
 
 	case noChangesMsg:
 		m.state = showingRunes
